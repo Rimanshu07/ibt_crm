@@ -41,7 +41,7 @@ export default function Organisations() {
             <thead><tr><th>Organisation</th><th>Country</th><th>Plan</th><th>Users</th><th>Registered</th><th>Status</th></tr></thead>
             <tbody>
               {rows.map((o) => (
-                <tr key={o.id} className="clickable" onClick={() => nav(`/admin/organisations/${o.id}`)}>
+                <tr key={o.id} className="clickable" onClick={() => nav(`/admin/orgs/${o.id}`)}>
                   <td><strong>{o.name}</strong><div className="muted small">{o.email} · {o.phone}</div></td>
                   <td>{o.country_code}{o.city ? `, ${o.city}` : ''}</td>
                   <td>{o.plan_name || <span className="muted">—</span>}</td>

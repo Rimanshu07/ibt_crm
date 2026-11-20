@@ -17,7 +17,7 @@ export default function Calculator() {
   const blank = () => ({ date: todayIso(), details: { ...defaults(FIELDS(service)), ...(params.get('hotel_id') ? { hotel_id: Number(params.get('hotel_id')) } : {}) }, result: null, meta: {} });
   const [rows, setRows] = useState([blank()]);
   const [booking, setBooking] = useState(false);
-  const set = (i, patch) => setRows(rows.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+  const set = (i, patch) => setRows((current) => current.map((r, k) => (k === i ? { ...r, ...patch } : r)));
   const calc = async (i) => {
     const r = rows[i];
     try { const res = await api(`/rates/${service}/calculate`, { method: 'POST', body: { date: r.date, details: r.details } }); set(i, { result: res.data }); }

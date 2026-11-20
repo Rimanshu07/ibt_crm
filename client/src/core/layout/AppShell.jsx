@@ -10,6 +10,13 @@ function NavMenu({ label, items, right, cols, active, badge, render }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const loc = useLocation();
+  const sections = [];
+  if (cols) {
+    for (const item of items) {
+      if (item.title) sections.push({ title: item.title, items: [] });
+      else if (!item.divider && sections.length) sections[sections.length - 1].items.push(item);
+    }
+  }
   useEffect(() => setOpen(false), [loc.pathname, loc.search]);
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -23,7 +30,21 @@ function NavMenu({ label, items, right, cols, active, badge, render }) {
       </button>
       {open && (
         <div className={`menu ${right ? 'right' : ''} ${cols ? 'cols' : ''}`}>
-          {render ? render(() => setOpen(false)) : items.map((i, k) => (i.divider ? <hr key={k} /> : i.title ? <div key={k} className="menu-title">{i.title}</div>
+          {render ? render(() => setOpen(false)) : cols ? (
+            <div className="menu-sections">
+              {sections.map((section) => (
+                <section key={section.title} className="menu-section">
+                  <div className="menu-title">{section.title}</div>
+                  {section.items.map((item) => (
+                    <Link key={item.to} to={item.to}>
+                      <span>{item.icon ? `${item.icon} ` : ''}{item.label}</span>
+                      {item.count ? <span className="count">{item.count}</span> : null}
+                    </Link>
+                  ))}
+                </section>
+              ))}
+            </div>
+          ) : items.map((i, k) => (i.divider ? <hr key={k} /> : i.title ? <div key={k} className="menu-title">{i.title}</div>
             : <Link key={i.to} to={i.to}><span>{i.icon ? `${i.icon} ` : ''}{i.label}</span>{i.count ? <span className="count">{i.count}</span> : null}</Link>))}
         </div>
       )}

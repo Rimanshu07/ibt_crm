@@ -12,7 +12,9 @@
     "migrate-db": "node scripts/migrate-db.js",
     "seed-org-defaults": "node scripts/seed-org-defaults.js",
     "seed-demo-services": "node scripts/seed-demo-services.js",
-    "seed-demo-empty-tables": "node scripts/seed-demo-empty-tables.js"
+    "seed-demo-empty-tables": "node scripts/seed-demo-empty-tables.js",
+    "seed-more-demo-services": "node scripts/seed-more-demo-services.js",
+    "seed-all-services": "node scripts/seed-all-services.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

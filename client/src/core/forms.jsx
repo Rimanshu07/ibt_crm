@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MASTER_TYPES, DEFAULT_OPTIONS, SUPPLIER_SERVICES, SERVICES, listKey } from '@shared/catalog.js';
 import { api, qs } from './api.js';
 import { Field, Modal, useForm, FormError, useToast } from './ui.jsx';
@@ -34,7 +34,7 @@ export async function addOption(list, value) {
 /* ======================================================================
    Combo: searchable dropdown, single or multiple, with "+ Create"
    ====================================================================== */
-export function Combo({ options, value, onChange, multiple, placeholder = 'Select…', onCreate, createLabel = 'Create', onQuery, disabled }) {
+export function Combo({ options, value, onChange, multiple, placeholder = 'Select…', onCreate, createLabel = 'Create', onQuery, loading = false, error = '', onRetry, disabled }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [hi, setHi] = useState(0);
@@ -44,7 +44,7 @@ export function Combo({ options, value, onChange, multiple, placeholder = 'Selec
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, []);
-  useEffect(() => { if (onQuery) onQuery(q); }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (onQuery) onQuery(q); }, [q, onQuery]);
   const norm = options.map((o) => (typeof o === 'object' ? o : { value: o, label: String(o) }));
   const selected = multiple ? (value || []) : value;
   const shown = onQuery ? norm : norm.filter((o) => o.label.toLowerCase().includes(q.toLowerCase()));
@@ -75,13 +75,15 @@ export function Combo({ options, value, onChange, multiple, placeholder = 'Selec
       </div>
       {open && (
         <div className="combo-list">
+          {loading && !shown.length && <div className="sub">Loading options…</div>}
+          {error && <div className="sub" role="alert">{error}{onRetry && <button className="btn link small" onMouseDown={(e) => e.preventDefault()} onClick={() => onRetry(q)}>Retry</button>}</div>}
           {shown.slice(0, 200).map((o, i) => (
             <div key={o.value} className={i === hi ? 'hi' : ''} onMouseDown={(e) => { e.preventDefault(); pick(o.value); }}>
               {multiple && <input type="checkbox" readOnly checked={selected.includes(o.value)} style={{ marginRight: 6 }} />}
               {o.label}{o.sub && <div className="sub">{o.sub}</div>}
             </div>
           ))}
-          {!shown.length && !canCreate && <div className="sub">No matches{onCreate ? ' – type to create' : ''}</div>}
+          {!loading && !error && !shown.length && !canCreate && <div className="sub">No matches{onCreate ? ' – type to create' : ''}</div>}
           {canCreate && <div className={`create ${hi === shown.length ? 'hi' : ''}`} onMouseDown={(e) => { e.preventDefault(); create(); }}>+ {createLabel} “{q.trim()}”</div>}
         </div>
       )}
@@ -109,12 +111,33 @@ export function RefPicker({ refType, value, onChange, service, onPicked, placeho
   const [opts, setOpts] = useState([]);
   const [current, setCurrent] = useState(null);
   const [creating, setCreating] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const timer = useRef(null);
-  const load = (q = '') => {
+  const requestId = useRef(0);
+  const load = useCallback((q = '') => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => api(`/lookup/${refType}${qs({ q, service, limit: 50 })}`).then((r) => setOpts(r.data)).catch(() => {}), 200);
-  };
-  useEffect(() => { load(''); }, [refType, service]); // eslint-disable-line react-hooks/exhaustive-deps
+    const id = ++requestId.current;
+    setLoading(true);
+    setLoadError('');
+    timer.current = setTimeout(async () => {
+      try {
+        const r = await api(`/lookup/${refType}${qs({ q, service, limit: 50 })}`);
+        if (id === requestId.current) setOpts(r.data);
+      } catch (e) {
+        if (id === requestId.current) {
+          setOpts([]);
+          setLoadError(e.message);
+        }
+      } finally {
+        if (id === requestId.current) setLoading(false);
+      }
+    }, q ? 200 : 0);
+  }, [refType, service]);
+  useEffect(() => () => {
+    clearTimeout(timer.current);
+    requestId.current += 1;
+  }, [refType, service]);
   useEffect(() => {
     if (!value) { setCurrent(null); return; }
     if (current?.id === Number(value)) return;
@@ -131,7 +154,8 @@ export function RefPicker({ refType, value, onChange, service, onPicked, placeho
   return (
     <>
       <Combo disabled={disabled} options={all.map((o) => ({ value: o.id, label: o.name, sub: o.sub }))} value={value || null} onChange={choose}
-        onQuery={load} placeholder={placeholder || `Search ${label}…`} onCreate={(name) => setCreating(name)} createLabel={`Create new ${label}`} />
+        onQuery={load} loading={loading} error={loadError} onRetry={load}
+        placeholder={placeholder || `Search ${label}…`} onCreate={(name) => setCreating(name)} createLabel={`Create new ${label}`} />
       {creating !== null && (
         <QuickCreate refType={refType} name={creating} service={service} onClose={() => setCreating(null)}
           onCreated={(rec) => { setCreating(null); setOpts((o) => [rec, ...o]); setCurrent(rec); onChange(rec.id); onPicked?.(rec); }} />

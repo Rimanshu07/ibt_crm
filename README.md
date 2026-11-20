@@ -96,6 +96,8 @@ For an existing database, run `cd server && npm run migrate-db` to create missin
 Run `cd server && npm run seed-org-defaults` to backfill missing standard setup data for active organisations without replacing existing organisation data.
 For empty service catalogs only, `cd server && npm run seed-demo-services` adds clearly labeled DEMO suppliers, hotels, transport, activities and sample rates for active organisations.
 `cd server && npm run seed-demo-empty-tables` fills remaining empty setup/demo tables. Its sample invoices are void, sample notifications are read, and sample hotel closures are dated in 2099 so they do not affect current operations.
+`cd server && npm run seed-more-demo-services` adds five more clearly labeled examples of each service type for every active organisation without creating additional organizations.
+`cd server && npm run seed-all-services` adds idempotent DEMO train, visa, passport, insurance, land-package, transport cab-type, and supplier catalog records plus their dropdown options. Flights are quote-based and do not have a separate service master table; the script adds a DEMO flight supplier and ensures the airline options exist without creating fake trips or bookings.
 
 ## Test the full flow
 
