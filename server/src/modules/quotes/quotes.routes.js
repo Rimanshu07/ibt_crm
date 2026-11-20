@@ -1,0 +1,19 @@
+import { Router } from 'express';
+import { ah } from '../../core/http.js';
+import { orgUser, requireFeature, requirePermission } from '../../core/auth.js';
+import * as C from './quotes.controller.js';
+
+const router = Router();
+router.use(...orgUser, requireFeature('quotes'));
+const build = requirePermission('quotes.create');
+router.get('/trip/:id', requirePermission('trips.view'), ah(C.tripQuotes));
+router.get('/trip/:id/suggestions', build, ah(C.suggestions));
+router.post('/trip/:id', build, ah(C.create));
+router.post('/trip/:id/convert', requireFeature('conversion'), requirePermission('trips.convert'), ah(C.convert));
+router.post('/price', build, ah(C.price));
+router.post('/itinerary-draft', build, ah(C.itineraryDraft));
+router.get('/defaults', build, ah(C.defaults));
+router.get('/:id', requirePermission('trips.view'), ah(C.get));
+router.get('/:id/schedule', requirePermission('trips.convert'), ah(C.schedule));
+router.put('/:id/itinerary', build, ah(C.updateItinerary));
+export default router;

@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import { ah } from '../../core/http.js';
+import { orgUser, requireFeature, requirePermission } from '../../core/auth.js';
+import * as C from './finance.controller.js';
+
+const router = Router();
+router.use(...orgUser, requireFeature('accounting'));
+const log = requirePermission('payments.log');
+const view = requirePermission('accounts.view');
+router.get('/instalments', requirePermission('payments.log', 'accounts.view'), ah(C.instalments));
+router.post('/instalments/:id/pay', log, ah(C.pay));
+router.get('/trip/:id', requirePermission('trips.view'), ah(C.trip));
+router.put('/trip/:id/customer-instalments', log, ah(C.customerSchedule));
+router.get('/transactions', view, ah(C.transactions));
+router.post('/transactions/:id/verify', requireFeature('payment_verification'), requirePermission('payments.verify'), ah(C.verify));
+router.delete('/transactions/:id', log, ah(C.removeTxn));
+router.get('/accounts', view, ah(C.accounts));
+router.get('/parties', view, ah(C.parties));
+router.get('/ledger', view, ah(C.ledger));
+export default router;

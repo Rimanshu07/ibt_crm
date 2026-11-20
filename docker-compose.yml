@@ -1,0 +1,15 @@
+# Optional: run MySQL 8 in Docker instead of installing it.
+# docker compose up -d   then set DB_PASSWORD=ibtsecret in server/.env
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ibt-crm-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ibtsecret
+    ports:
+      - "3306:3306"
+    volumes:
+      - ibt_mysql:/var/lib/mysql
+volumes:
+  ibt_mysql:
