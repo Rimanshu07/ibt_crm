@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { Children, createContext, isValidElement, useCallback, useContext, useState } from 'react';
 
 /* ---------- Toast ---------- */
 const ToastContext = createContext(() => {});
@@ -90,14 +90,30 @@ export function Pagination({ page, size, total, onChange }) {
 }
 
 /* ---------- Form controls ---------- */
+/** Finds the error of the form field inside (handlers from useForm().set carry it). */
+function childError(children, depth = 0) {
+  let found;
+  Children.forEach(children, (c) => {
+    if (found || !isValidElement(c) || depth > 3) return;
+    const h = c.props?.onChange;
+    if (h && h.fieldKey) { if (h.fieldError) found = h.fieldError; return; }
+    found = childError(c.props?.children, depth + 1);
+  });
+  return found;
+}
 export function Field({ label, hint, error, children, className = '' }) {
+  const err = error || childError(children);
   return (
-    <div className={`field ${error ? 'has-error' : ''} ${className}`}>
+    <div className={`field ${err ? 'has-error' : ''} ${className}`}>
       {label && <label>{label}</label>}
       {children}
-      {error ? <span className="error">{error}</span> : hint && <span className="hint">{hint}</span>}
+      {err ? <span className="error" role="alert">{err}</span> : hint && <span className="hint">{hint}</span>}
     </div>
   );
+}
+/** Red message under a field / line that is not inside a <Field>. */
+export function FieldError({ children }) {
+  return children ? <span className="field-error" role="alert">{children}</span> : null;
 }
 export function Input({ label, hint, error, className, ...props }) {
   return <Field label={label} hint={hint} error={error} className={className}><input {...props} value={props.value ?? ''} /></Field>;
@@ -132,7 +148,7 @@ export function Modal({ title, onClose, children, footer, wide, xwide }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? 'wide' : ''} ${xwide ? 'xwide' : ''}`} role="dialog" aria-label={title}>
-        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-head"><h2>{title}</h2><button className="icon-btn remove-x" onClick={onClose} aria-label="Close">✕</button></div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
@@ -160,10 +176,16 @@ export function useForm(initial) {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
-  const set = (key) => (e) => {
-    const v = e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
-    setValues((s) => ({ ...s, [key]: v }));
-    setErrors((s) => ({ ...s, [key]: undefined }));
+  const set = (key) => {
+    const h = (e) => {
+      const v = e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e;
+      setValues((s) => ({ ...s, [key]: v }));
+      setErrors((s) => (s[key] ? { ...s, [key]: undefined } : s));
+    };
+    // lets <Field> show this field's error right below it
+    h.fieldKey = key;
+    h.fieldError = errors[key] || Object.entries(errors).find(([k, m]) => m && k.startsWith(`${key}.`))?.[1];
+    return h;
   };
   const submit = async (fn) => {
     setBusy(true); setErrors({});

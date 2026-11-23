@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, download, readText } from '../../core/api.js';
+import { api, download } from '../../core/api.js';
+import { readSheet } from '../../core/files.js';
 import { useAuth } from '../../core/auth.jsx';
 import { Check, Field, PageHeader, useToast } from '../../core/ui.jsx';
 import { CreatableSelect } from '../../core/forms.jsx';
@@ -63,7 +64,7 @@ export default function UploadPrices() {
   const run = async (dry) => {
     setBusy(true);
     try {
-      const payload = await Promise.all(files.map(async (f) => ({ name: f.name, text: await readText(f) })));
+      const payload = await Promise.all(files.map(async (f) => ({ name: f.name, text: await readSheet(f) })));
       const r = await api(`/rates/${service}/upload`, { method: 'POST', body: { currency, files: payload, dry_run: dry, append } });
       setResult({ ...r.data, dry, message: r.message });
       toast(r.message, r.data.errors.length && !dry ? 'bad' : 'ok');
@@ -77,7 +78,7 @@ export default function UploadPrices() {
         <div className="grid grid-4">
           <Field label="Currency" hint={`All prices will be saved in "${currency}"`}><CreatableSelect list="currencies" value={currency} onChange={(v) => setCurrency(v || me.org.base_currency)} /></Field>
           <Field label="Select CSV file(s)" className="span-2" hint="Save your Excel sheet as CSV (File → Save As → CSV). You can upload several files at once.">
-            <input type="file" accept=".csv,text/csv" multiple onChange={(e) => { setFiles([...e.target.files]); setResult(null); }} />
+            <input type="file" accept=".csv,.xlsx,.xls,text/csv" multiple onChange={(e) => { setFiles([...e.target.files]); setResult(null); }} />
           </Field>
           <div className="stack"><Check checked={append} onChange={setAppend}>Keep existing prices for these dates (add instead of replace)</Check></div>
         </div>

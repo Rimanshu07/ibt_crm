@@ -80,3 +80,61 @@ export async function activityPrice(orgId, d, date) {
   const buy = num(aO?.price) * num(d.adults) + num(cO?.price) * num(d.children);
   return { cost: r2(cost), buy_cost: r2(buy), note: `Adult ${aS.price}${cS ? ` · Child ${cS.price}` : ''}`, warnings };
 }
+
+/**
+ * System rates for the quote form's price popups.
+ * hotel:     details {hotel_id, room_type, meal_plan, pax_per_room} → per date { room, aweb, cweb, cnb } each { rate, buy }
+ * transport: details {transport_service_id, cab_type}               → per date { rate, buy, closed }
+ * activity:  details {activity_service_id}                          → per date { Adult:{rate,buy}, Child:{rate,buy}, closed }
+ */
+export async function breakdown(orgId, service, d, dates) {
+  const sorted = [...dates].filter(Boolean).sort();
+  if (!sorted.length) return { dates: {}, warnings: [] };
+  const from = sorted[0]; const to = sorted[sorted.length - 1];
+  const out = {}; const warnings = [];
+  const cell = (rates, q, date) => {
+    const s = pick(rates, q, date, 'sales'); const o = pick(rates, q, date, 'ops');
+    return s ? { rate: num(s.price), buy: num((o || s).price), season: s.season || '' } : null;
+  };
+  if (service === 'hotel') {
+    const hotel = await one('SELECT id, child_age_from, child_age_to FROM hotels WHERE id = ? AND org_id = ?', [d.hotel_id, orgId]);
+    if (!hotel) return { dates: {}, warnings: ['Choose a hotel'] };
+    const rates = await ratesFor(orgId, 'hotel', hotel.id, from, to);
+    const closures = await query('SELECT * FROM hotel_closures WHERE hotel_id = ? AND date_from <= ? AND date_to >= ?', [hotel.id, to, from]);
+    for (const date of sorted) {
+      const room = cell(rates, { variant: d.room_type, meal_plan: d.meal_plan, occupancy: num(d.pax_per_room) || null, kind: 'base' }, date);
+      const ex = (kind) => cell(rates, { variant: '', meal_plan: d.meal_plan, kind }, date);
+      let closed = null;
+      for (const c of closures) {
+        const types = j(c.room_types, null);
+        if (date >= String(c.date_from).slice(0, 10) && date <= String(c.date_to).slice(0, 10)
+          && (!types || !types.length || types.map((x) => x.toLowerCase()).includes(String(d.room_type || '').toLowerCase()))) closed = c.kind;
+      }
+      if (closed) warnings.push(`${date}: ${closed === 'soldout' ? 'sold out' : 'blackout – confirm the rate with the hotel'}`);
+      if (!room) warnings.push(`${date}: no ${d.room_type || ''} ${d.meal_plan || ''} price`);
+      out[date] = { room, aweb: ex('aweb'), cweb: ex('cweb'), cnb: ex('cnb'), closed };
+    }
+  } else if (service === 'transport') {
+    const svc = await one('SELECT * FROM transport_services WHERE id = ? AND org_id = ?', [d.transport_service_id, orgId]);
+    if (!svc) return { dates: {}, warnings: ['Choose a service'] };
+    const rates = await ratesFor(orgId, 'transport', svc.id, from, to);
+    for (const date of sorted) {
+      const c = cell(rates, { variant: d.cab_type }, date);
+      const closed = (svc.closing_weekdays && svc.closing_weekdays.split(',').includes(weekday(date))) || (j(svc.closing_dates, []) || []).some((x) => date >= x.from && date <= x.to);
+      if (closed) warnings.push(`${date}: service closed`);
+      out[date] = { ...(c || { rate: null, buy: null }), closed };
+    }
+  } else if (service === 'activity') {
+    const svc = await one('SELECT * FROM activity_services WHERE id = ? AND org_id = ?', [d.activity_service_id, orgId]);
+    if (!svc) return { dates: {}, warnings: ['Choose an activity'] };
+    const rates = await ratesFor(orgId, 'activity', svc.id, from, to);
+    const variants = [...new Set(rates.map((r) => r.variant))];
+    for (const date of sorted) {
+      const closed = (svc.closing_weekdays && svc.closing_weekdays.split(',').includes(weekday(date))) || (j(svc.closing_dates, []) || []).some((x) => date >= x.from && date <= x.to);
+      if (closed) warnings.push(`${date}: closed`);
+      out[date] = { closed };
+      for (const v of variants.length ? variants : ['Adult', 'Child']) out[date][v] = cell(rates, { variant: v }, date);
+    }
+  }
+  return { dates: out, warnings: [...new Set(warnings)] };
+}

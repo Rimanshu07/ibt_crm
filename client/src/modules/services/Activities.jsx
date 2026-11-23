@@ -48,6 +48,7 @@ const blankSvc = () => ({ name: '', code: '', description: '', open_time: '', cl
 function ActivityDialog({ activity, onClose, onSaved }) {
   const toast = useToast();
   const f = useForm({ name: activity.name || '', city: activity.city || '', description: activity.description || '',
+    tourist_types: activity.tourist_types || 'Adult, Child (6-12)', closing_weekdays: activity.closing_weekdays || '', closing_dates: activity.closing_dates || [],
     services: activity.services?.length ? activity.services.filter((s) => s.is_active).map((s) => ({ ...blankSvc(), ...Object.fromEntries(Object.entries(s).map(([k, x]) => [k, x ?? ''])), closing_dates: s.closing_dates || [] })) : [blankSvc()] });
   const v = f.values;
   const setSvc = (i, patch) => f.set('services')(v.services.map((s, k) => (k === i ? { ...s, ...patch } : s)));
@@ -62,7 +63,26 @@ function ActivityDialog({ activity, onClose, onSaved }) {
         <Field label="City"><CreatableSelect list="cities" value={v.city || null} onChange={(x) => f.set('city')(x || '')} /></Field>
         <Input label="Short description" value={v.description} onChange={f.set('description')} />
       </div>
-      <h3 className="mt">Ticket types / services</h3>
+      <h3 className="mt">Tourist Age & Group Configurations</h3>
+      <div className="row wrap">
+        {['Adult', 'Child (6-12)', 'Child (2-5)', 'Infant', 'Senior Citizen', 'Foreigner', 'Group (per vehicle)', 'Couple'].map((t) => {
+          const list = v.tourist_types.split(',').map((x) => x.trim()).filter(Boolean);
+          const on = list.includes(t);
+          return <button key={t} type="button" className={`chip ${on ? 'on' : ''}`} onClick={() => f.set('tourist_types')((on ? list.filter((x) => x !== t) : [...list, t]).join(', '))}>{on ? '✓' : '+'} {t}</button>;
+        })}
+      </div>
+      <p className="muted small">Ticket prices are entered per tourist type in Travel Activity Prices (e.g. Adult, Child).</p>
+      <div className="row wrap mt"><span className="small muted">Activity closed on:</span>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => { const days = v.closing_weekdays ? v.closing_weekdays.split(',') : []; return (
+          <label key={d} className="checkbox small"><input type="checkbox" checked={days.includes(d)} onChange={(e) => f.set('closing_weekdays')((e.target.checked ? [...days, d] : days.filter((x) => x !== d)).join(','))} /> {d}</label>); })}
+        <button className="btn ghost small" onClick={() => f.set('closing_dates')([...v.closing_dates, { from: '', to: '' }])}>+ Closed dates</button>
+      </div>
+      {v.closing_dates.map((c, k) => (
+        <div key={k} className="row"><input type="date" value={c.from} onChange={(e) => f.set('closing_dates')(v.closing_dates.map((x, j) => (j === k ? { ...x, from: e.target.value, to: x.to || e.target.value } : x)))} />
+          <span>to</span><input type="date" value={c.to} onChange={(e) => f.set('closing_dates')(v.closing_dates.map((x, j) => (j === k ? { ...x, to: e.target.value } : x)))} />
+          <button className="icon-btn" onClick={() => f.set('closing_dates')(v.closing_dates.filter((_, j) => j !== k))}>✕</button></div>
+      ))}
+      <h3 className="mt">Ticket types / packages</h3>
       {v.services.map((s, i) => (
         <div key={i} className="svc-block"><div className="svc-line">
           <Field label="Name *" className="w3"><input value={s.name} onChange={(e) => setSvc(i, { name: e.target.value })} placeholder="e.g. Premium ferry, Entry ticket" /></Field>
@@ -74,7 +94,7 @@ function ActivityDialog({ activity, onClose, onSaved }) {
           <Field label="Closed on" className="w2" hint="Mon,Tue"><input value={s.closing_weekdays} onChange={(e) => setSvc(i, { closing_weekdays: e.target.value })} /></Field>
           <Field label="Description (itinerary)" className="w6"><input value={s.description} onChange={(e) => setSvc(i, { description: e.target.value })} /></Field>
           <Field label="Internal code" className="w2"><input value={s.code} onChange={(e) => setSvc(i, { code: e.target.value })} /></Field>
-          <div className="w1"><button className="icon-btn" onClick={() => f.set('services')(v.services.filter((_, k) => k !== i))}>🗑</button></div>
+          <div className="w1"><button className="btn remove xs" onClick={() => f.set('services')(v.services.filter((_, k) => k !== i))}>Remove</button></div>
         </div></div>
       ))}
       <button className="btn secondary small" onClick={() => f.set('services')([...v.services, blankSvc()])}>+ Add ticket type</button>

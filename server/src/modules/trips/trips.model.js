@@ -96,6 +96,29 @@ export async function create(conn, req, b, currency) {
   return { id: r.insertId, trip_no: no };
 }
 export const update = (id, b) => query(`UPDATE trips SET ${COLS.map((c) => `${c}=?`).join(',')} WHERE id = ?`, [...tripVals(b), id]);
+export const findByImportRef = async (orgId, refId) => {
+  const norm = String(refId ?? '').trim().toUpperCase();
+  try {
+    return await one(
+      `SELECT id, trip_no, trip_type, services, ref_id, destination_ids, start_date, nights, end_date, adults,
+              children_ages, infants, foc, guest_salutation, guest_name, guest_phone, guest_email, guest_city, tags, notes
+       FROM trips WHERE org_id = ? AND ref_id_normalized = ? LIMIT 1`,
+      [orgId, norm]
+    );
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      return await one(
+        `SELECT id, trip_no, trip_type, services, ref_id, destination_ids, start_date, nights, end_date, adults,
+                children_ages, infants, foc, guest_salutation, guest_name, guest_phone, guest_email, guest_city, tags, notes
+         FROM trips WHERE org_id = ? AND UPPER(TRIM(ref_id)) = ? LIMIT 1`,
+        [orgId, norm]
+      );
+    }
+    throw err;
+  }
+};
+export const isRefIdConflict = (error) => error?.code === 'ER_DUP_ENTRY'
+  && (/uq_trips_org_ref_normalized/i.test(`${error.sqlMessage || ''} ${error.message || ''}`) || /ref_id/i.test(`${error.sqlMessage || ''} ${error.message || ''}`));
 
 export async function detail(req, t) {
   const users = await query('SELECT id, name, phone FROM users WHERE org_id = ?', [req.orgId]);

@@ -18,10 +18,11 @@ import quotes from './quotes/quotes.routes.js';
 import bookings from './bookings/bookings.routes.js';
 import finance from './finance/finance.routes.js';
 import reports from './reports/reports.routes.js';
+import attachments from './attachments/attachments.routes.js';
 
 export default [
   ['auth', auth], ['meta', meta], ['admin', admin], ['org', organization], ['notifications', notifications],
   ['options', options], ['lookup', lookup], ['masters', masters], ['suppliers', suppliers], ['hotels', hotels],
   ['transport', transport], ['activities', activities], ['rates', rates], ['trips', trips], ['tasks', tasks],
-  ['quotes', quotes], ['bookings', bookings], ['finance', finance], ['reports', reports],
+  ['quotes', quotes], ['bookings', bookings], ['finance', finance], ['reports', reports], ['attachments', attachments],
 ];

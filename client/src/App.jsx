@@ -22,6 +22,7 @@ import Transactions from './modules/accounting/Transactions.jsx';
 import Accounts from './modules/accounting/Accounts.jsx';
 import Ledgers from './modules/accounting/Ledgers.jsx';
 import SalesReport from './modules/accounting/SalesReport.jsx';
+import CheckInOut from './modules/accounting/CheckInOut.jsx';
 import QuoteDiff from './modules/accounting/QuoteDiff.jsx';
 import Hotels from './modules/services/Hotels.jsx';
 import HotelForm from './modules/services/HotelForm.jsx';
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="accounting/sales-report" element={G('sales_reports', 'reports.sales', <SalesReport />)} />
         <Route path="accounting/quote-diff" element={G('quote_booking_diff', null, <QuoteDiff />)} />
         <Route path="reports" element={<Navigate to="/app/accounting/sales-report" replace />} />
+        <Route path="reports/check-in-out" element={G(null, 'reports.sales', <CheckInOut />)} />
 
         <Route path="services/hotels" element={G('hotel', null, <Hotels />)} />
         <Route path="services/hotels/new" element={G('hotel', 'masters.manage', <HotelForm />)} />

@@ -38,7 +38,7 @@ export default function BookingDialog({ booking, cur, onClose, onSaved }) {
   return (
     <Modal wide title={`${def.icon} ${booking.title}`} onClose={onClose}
       footer={<>
-        {booking.service === 'hotel' && <button className="btn secondary" disabled={mail} onClick={email}>✉ Booking enquiry email</button>}
+        {booking.service === 'hotel' && <button className="btn secondary" disabled={mail} onClick={email}>Booking enquiry email</button>}
         <button className="btn secondary" onClick={voucher}>Voucher</button>
         <span className="spacer" />
         <button className="btn secondary" onClick={onClose}>Close</button>

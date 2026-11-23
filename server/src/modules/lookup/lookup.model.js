@@ -9,21 +9,22 @@ import { MASTER_TYPES } from '../../../../shared/catalog.js';
 const DEDICATED = {
   hotel: {
     sql: `SELECT id, name, CONCAT(city, IF(star IS NULL OR star = '', '', CONCAT(' · ', star, IF(star REGEXP '^[0-9]$', '★', '')))) AS sub,
-                 JSON_OBJECT('room_types', room_types, 'meal_plans', meal_plans, 'location', location, 'city', city, 'supplier_id', supplier_id) AS data
+                 JSON_OBJECT('room_types', room_types, 'meal_plans', meal_plans, 'location', location, 'city', city, 'supplier_id', supplier_id, 'child_age_from', child_age_from, 'child_age_to', child_age_to) AS data
           FROM hotels WHERE org_id = ? AND is_active = 1`,
     search: '(name LIKE ? OR city LIKE ? OR location LIKE ?)', n: 3, order: 'name',
   },
   transport_service: {
     sql: `SELECT ts.id, CONCAT(ts.from_location, IF(ts.to_location IS NULL OR ts.to_location = '', '', CONCAT(' → ', ts.to_location)), ' · ', ts.service) AS name,
                  CONCAT_WS(' · ', ts.duty_code, IF(ts.distance_km IS NULL, NULL, CONCAT(ts.distance_km, ' km'))) AS sub,
-                 JSON_OBJECT('start_time', ts.start_time, 'duration_mins', ts.duration_mins,
+                 JSON_OBJECT('start_time', ts.start_time, 'duration_mins', ts.duration_mins, 'from_location', ts.from_location, 'to_location', ts.to_location, 'service', ts.service, 'pickup_points', ts.pickup_points,
                    'cab_types', (SELECT GROUP_CONCAT(DISTINCT r.variant ORDER BY r.variant SEPARATOR '|') FROM rates r WHERE r.service = 'transport' AND r.ref_id = ts.id)) AS data
           FROM transport_services ts WHERE ts.org_id = ? AND ts.is_active = 1`,
     search: '(ts.from_location LIKE ? OR ts.to_location LIKE ? OR ts.service LIKE ? OR ts.duty_code LIKE ?)', n: 4, order: 'ts.from_location, ts.service', alias: 'ts',
   },
   activity_service: {
     sql: `SELECT s.id, CONCAT(a.name, ' – ', s.name) AS name, a.city AS sub,
-                 JSON_OBJECT('slots', s.slots, 'open_time', s.open_time, 'child_age_from', s.child_age_from, 'child_age_to', s.child_age_to) AS data
+                 JSON_OBJECT('slots', s.slots, 'open_time', s.open_time, 'duration_mins', s.duration_mins, 'child_age_from', s.child_age_from, 'child_age_to', s.child_age_to, 'city', a.city,
+                   'ticket_types', (SELECT GROUP_CONCAT(DISTINCT r.variant ORDER BY r.variant SEPARATOR '|') FROM rates r WHERE r.service = 'activity' AND r.ref_id = s.id)) AS data
           FROM activity_services s JOIN activities a ON a.id = s.activity_id WHERE s.org_id = ? AND s.is_active = 1 AND a.is_active = 1`,
     search: '(a.name LIKE ? OR s.name LIKE ? OR a.city LIKE ?)', n: 3, order: 'a.name, s.name', alias: 's',
   },
@@ -60,6 +61,7 @@ export async function search(orgId, ref, { q = '', ids = null, service = '', lim
     const data = j(r.data, {}) || {};
     for (const k of Object.keys(data)) if (typeof data[k] === 'string' && /^[[{]/.test(data[k])) data[k] = j(data[k], data[k]);
     if (typeof data.cab_types === 'string') data.cab_types = data.cab_types.split('|').filter(Boolean);
+    if (typeof data.ticket_types === 'string') data.ticket_types = data.ticket_types.split('|').filter(Boolean);
     return { id: r.id, name: r.name, sub: r.sub || '', data };
   });
 }

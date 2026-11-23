@@ -21,7 +21,7 @@ export default function OptionListDialog({ list, title, onClose }) {
     <Modal title={title} onClose={onClose} footer={<button className="btn secondary" onClick={onClose}>Done</button>}>
       <div className="row mb"><input value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="Add a new value" /><button className="btn" onClick={add}>Add</button></div>
       <table><tbody>{opts.map((o) => (
-        <tr key={o}><td>{o}</td><td className="right">{defaults.includes(o) ? <span className="muted small">built-in</span> : <button className="icon-btn" onClick={() => remove(o)}>🗑</button>}</td></tr>
+        <tr key={o}><td>{o}</td><td className="right">{defaults.includes(o) ? <span className="muted small">built-in</span> : <button className="btn remove xs" onClick={() => remove(o)}>Remove</button>}</td></tr>
       ))}</tbody></table>
     </Modal>
   );

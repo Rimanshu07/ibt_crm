@@ -6,6 +6,7 @@
 import { SERVICES } from '@shared/catalog.js';
 import { fill } from '@shared/templates.js';
 import { api, money, fmtDate, fmtDay, addDaysIso, paxText } from '../../core/api.js';
+import { ranges } from '@shared/quoteItems.js';
 
 export const loadDocs = async (tripId, quoteId) => (await api(`/reports/documents/${tripId}${quoteId ? `?quote_id=${quoteId}` : ''}`)).data;
 
@@ -76,7 +77,7 @@ function page(d, title, body) {
   .ftr{margin-top:28px;padding-top:10px;border-top:2px solid ${accent};font-size:11px;color:#6b7280;text-align:center}
   .sign{margin-top:36px;text-align:right} .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;margin:10px 0}
   @media print{body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;padding:0 6mm}.bar{display:none} h2{break-after:avoid} .day,tr{break-inside:avoid}}
-  </style></head><body><div class="bar"><button class="p" onclick="print()">Print / Save as PDF</button><button onclick="downloadWord()">Download Word</button><button onclick="close()">Close</button></div>
+  </style></head><body><div class="bar"><button class="p" onclick="print()">Print / Save as PDF</button><button onclick="downloadWord()">Download Word</button><button onclick="window.close()">Close</button></div>
   <div class="sheet">${header(d, title)}${body}${footer(d)}</div>
   <script>function downloadWord(){var h='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"></head><body>'+document.querySelector('.sheet').innerHTML+'</body></html>';var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h],{type:'application/msword'}));a.download=${JSON.stringify(`${title}-${d.trip.trip_no}.doc`)};a.click();}</script></body></html>`;
 }
@@ -102,16 +103,66 @@ const guestBox = (d) => {
 const hotelOf = (d, id) => d.hotels.find((h) => h.id === Number(id)) || {};
 
 /* ------------------------------ Quote ------------------------------ */
+/** What the customer may see for a line: vendor (DMC) names never appear on quotes or vouchers. */
+export function customerTitle(x) {
+  const dt = x.details || {};
+  if (x.service === 'land_package') return [dt.title || 'Land package', dt.option_name && `(${dt.option_name})`, dt.nights ? `· ${dt.nights}N` : ''].filter(Boolean).join(' ');
+  return x.title;
+}
+const nightsOf = (dt) => (Array.isArray(dt.nights) ? dt.nights.map(Number) : Array.from({ length: Number(dt.nights) || 1 }, (_, k) => (Number(dt.day) || 1) + k));
+/** Hotels for the document: our own hotel lines (one row per continuous stay) + hotels from a vendor land package. */
+export function quoteHotelRows(d) {
+  const q = d.quote || {}; const rows = [];
+  for (const i of d.items.filter((x) => x.service === 'hotel')) {
+    const h = hotelOf(d, i.details.hotel_id); const dt = i.details;
+    for (const [a, b] of ranges(nightsOf(dt))) {
+      rows.push({ first: a, hotel: h.name || i.title, city: [h.city, h.star ? `${h.star}${/^\d$/.test(h.star) ? '★' : ''}` : ''].filter(Boolean).join(' · '),
+        checkin: q.start_date ? addDaysIso(q.start_date, a - 1) : null, nights: b - a + 1, room: dt.room_type, meal: dt.meal_plan,
+        rooms: `${dt.rooms} room(s) × ${dt.pax_per_room} pax${Number(dt.aweb) ? ` · ${dt.aweb} adult extra bed` : ''}${Number(dt.cweb) ? ` · ${dt.cweb} child extra bed` : ''}${Number(dt.cnb) ? ` · ${dt.cnb} child no bed` : ''}` });
+    }
+  }
+  for (const i of d.items.filter((x) => x.service === 'land_package')) {
+    const base = Number(i.details.day) || 1;
+    for (const h of i.details.package?.hotels || []) {
+      for (const [a, b] of ranges((h.nights || []).map(Number))) {
+        const first = base + a - 1;
+        rows.push({ first, hotel: h.hotel, city: h.city, checkin: q.start_date ? addDaysIso(q.start_date, first - 1) : null, nights: b - a + 1, room: h.room || '', meal: h.meal_plan || '', rooms: '' });
+      }
+    }
+  }
+  return rows.sort((x, y) => x.first - y.first);
+}
+function serviceWhen(q, i) {
+  const dt = i.details; const day = (k) => (q.start_date ? fmtDay(addDaysIso(q.start_date, k - 1)) : `Day ${k}`);
+  if (Array.isArray(dt.days) && dt.days.length) return dt.days.map(Number).sort((a, b) => a - b).map(day).join(', ');
+  if (i.service === 'flight' && dt.legs?.[0]?.depart_date) return fmtDate(dt.legs[0].depart_date);
+  if (i.service === 'land_package') return `${day(Number(dt.day) || 1)} · ${dt.nights}N`;
+  return dt.day ? day(Number(dt.day)) : '';
+}
+function serviceDetail(i) {
+  const dt = i.details;
+  if (i.service === 'flight') {
+    return (dt.legs || []).map((l) => `<div><b>${esc(l.from_city)} → ${esc(l.to_city)}</b> ${esc([l.airline, l.flight_no].filter(Boolean).join(' '))}${l.depart_time ? ` · ${esc(l.depart_time)}${l.arrive_time ? `–${esc(l.arrive_time)}` : ''}` : ''}</div>`).join('')
+      + `<div class="muted small">${esc([dt.travel_class, dt.baggage].filter(Boolean).join(' · '))}</div>`;
+  }
+  if (i.service === 'land_package') {
+    const p = dt.package || {};
+    return `<b>${esc(dt.title)}</b>${dt.option_name ? ` <span class="muted">(${esc(dt.option_name)})</span>` : ''}${p.vehicle ? `<div class="muted small">Transport: ${esc(p.vehicle)}</div>` : ''}`
+      + (p.transport?.length ? `<div class="muted small">${p.transport.map((x) => `Day ${x.day}: ${esc(x.service)}`).join('<br>')}</div>` : '')
+      + (dt.description ? `<div class="muted small">${nl(dt.description)}</div>` : '');
+  }
+  if (i.service === 'other' && dt.comments) return `${esc(i.title)}<div class="muted small">${esc(dt.comments)}</div>`;
+  return esc(customerTitle(i));
+}
+
 export function quoteHtml(d) {
   const q = d.quote; const t = d.trip; const tpl = d.templates.quote_pdf; const s = tpl.settings;
   if (!q) return page(d, 'Quotation', '<p>No quote yet.</p>');
   const people = Number(q.adults) + q.children_ages.length;
   const it = q.itinerary || {};
-  const by = (svc) => d.items.filter((i) => i.service === svc);
-  const hotels = by('hotel').map((i) => { const h = hotelOf(d, i.details.hotel_id); const ci = q.start_date ? addDaysIso(q.start_date, (Number(i.details.day) || 1) - 1) : null;
-    return `<tr><td><b>${esc(h.name || i.title)}</b><div class="muted small">${esc(h.city || '')}${h.star ? ` · ${esc(h.star)}${/^\d$/.test(h.star) ? '★' : ''}` : ''}</div></td>
-      <td>${ci ? fmtDate(ci) : ''}<div class="muted small">${i.details.nights} night(s)</div></td><td>${esc(i.details.room_type)}<div class="muted small">${i.details.rooms} room(s) · ${i.details.pax_per_room} pax/room${Number(i.details.aweb) ? ` · ${i.details.aweb} extra bed` : ''}</div></td><td>${esc(i.details.meal_plan)}</td></tr>`; }).join('');
-  const others = d.items.filter((i) => i.service !== 'hotel').map((i) => `<tr><td>${SERVICES[i.service]?.icon || ''} ${esc(SERVICES[i.service]?.label)}</td><td>${i.details.day && q.start_date ? fmtDay(addDaysIso(q.start_date, Number(i.details.day) - 1)) : ''}</td><td>${esc(i.title)}${i.service === 'land_package' && i.details.description ? `<div class="muted small">${nl(i.details.description)}</div>` : ''}</td></tr>`).join('');
+  const hotels = quoteHotelRows(d).map((r) => `<tr><td><b>${esc(r.hotel)}</b><div class="muted small">${esc(r.city)}</div></td>
+      <td>${r.checkin ? fmtDate(r.checkin) : ''}<div class="muted small">${r.nights} night(s)</div></td><td>${esc(r.room)}<div class="muted small">${esc(r.rooms)}</div></td><td>${esc(r.meal)}</td></tr>`).join('');
+  const others = d.items.filter((i) => !['hotel'].includes(i.service)).map((i) => `<tr><td class="nowrap">${SERVICES[i.service]?.icon || ''} ${esc(SERVICES[i.service]?.label)}</td><td>${esc(serviceWhen(q, i))}</td><td>${serviceDetail(i)}</td></tr>`).join('');
   const lines = d.items.map((i) => ({ i, sell: i.selling_override ?? null }));
   const servicePrices = s.show_service_prices ? `<table><thead><tr><th>Service</th><th class="r">Price</th></tr></thead><tbody>${Object.entries(lines.reduce((a, { i }) => ({ ...a, [i.service]: (a[i.service] || 0) + Number(i.cost) }), {}))
     .map(([k, v]) => `<tr><td>${esc(SERVICES[k]?.plural)}</td><td class="r">${m(d, v * (Number(q.total_selling) / Math.max(Number(q.total_cost), 1)))}</td></tr>`).join('')}</tbody></table>` : '';
@@ -142,8 +193,8 @@ export function quoteText(d) {
   const q = d.quote; const t = d.trip; const v = vars(d);
   if (!q) return '';
   const it = q.itinerary || {};
-  const hotels = d.items.filter((i) => i.service === 'hotel').map((i) => `🏨 ${hotelOf(d, i.details.hotel_id).name || i.title} – ${i.details.nights}N, ${i.details.room_type}, ${i.details.meal_plan}`);
-  const other = d.items.filter((i) => i.service !== 'hotel').map((i) => `${SERVICES[i.service]?.icon || '•'} ${i.title}`);
+  const hotels = quoteHotelRows(d).map((r) => `🏨 ${r.hotel}${r.city ? `, ${r.city}` : ''} – ${r.nights}N${r.checkin ? ` from ${fmtDate(r.checkin)}` : ''}, ${r.room}, ${r.meal}`);
+  const other = d.items.filter((i) => i.service !== 'hotel').map((i) => `${SERVICES[i.service]?.icon || '•'} ${customerTitle(i)}`);
   return [
     `*${d.org.name}*`, `Hello ${v.guest_name},`, '',
     `Here is your quote for *${t.destinations || 'your trip'}*`, q.start_date ? `📅 ${fmtDate(q.start_date)} · ${q.nights ?? 0}N/${(q.nights ?? 0) + 1}D` : '', `👥 ${paxText(q.adults, q.children_ages, q.infants)}`, '',
@@ -171,12 +222,14 @@ export function tripVoucherHtml(d) {
   const hotels = live(d).filter((b) => b.service === 'hotel').map((b) => { const h = hotelOf(d, b.details.hotel_id);
     return `<tr><td><b>${esc(h.name || b.title)}</b><div class="muted small">${esc(h.address || h.location || '')}${h.phone ? ` · ☎ ${esc(h.phone)}` : ''}</div></td><td>${fmtDate(b.service_date)} → ${fmtDate(b.end_date)}</td>
       <td>${esc(b.details.room_type)} · ${esc(b.details.meal_plan)}<div class="muted small">${b.details.rooms} room(s) × ${b.details.pax_per_room} pax</div></td><td>${b.details.confirmation_no ? `<b>${esc(b.details.confirmation_no)}</b>` : `<span class="muted">${statusLabel(b)}</span>`}</td></tr>`; }).join('');
+  const pkgHotels = live(d).filter((b) => b.service === 'land_package').flatMap((b) => landHotelRows(b)).map((r) => `<tr><td><b>${esc(r.hotel)}</b><div class="muted small">${esc(r.city)}</div></td>
+      <td>${r.checkin ? `${fmtDate(r.checkin)} → ${fmtDate(r.checkout)}` : `${r.nights} night(s)`}</td><td>${esc([r.room, r.meal].filter(Boolean).join(' · '))}</td><td>${r.confirmation ? `<b>${esc(r.confirmation)}</b>` : `<span class="muted">${esc(r.status)}</span>`}</td></tr>`).join('');
   const services = live(d).filter((b) => b.service !== 'hotel').map((b) => `<tr><td>${b.service_date ? fmtDay(b.service_date) : ''}${b.details.start_time ? `<div class="muted small">${esc(b.details.start_time)}</div>` : ''}</td>
-    <td>${SERVICES[b.service]?.icon || ''} ${esc(b.title)}${b.details.pickup_point ? `<div class="muted small">Pickup: ${esc(b.details.pickup_point)}</div>` : ''}</td>
+    <td>${SERVICES[b.service]?.icon || ''} ${esc(customerTitle(b))}${b.service === 'land_package' && b.details.package?.vehicle ? `<div class="muted small">Transport: ${esc(b.details.package.vehicle)}</div>` : ''}${b.details.pickup_point ? `<div class="muted small">Pickup: ${esc(b.details.pickup_point)}</div>` : ''}</td>
     <td>${s.show_driver && b.details.driver_name ? `${esc(b.details.driver_name)} ${esc(b.details.driver_phone || '')}<div class="muted small">${esc(b.details.vehicle_no || '')}</div>` : esc(b.details.pnr || b.details.ticket_ref || b.details.confirmation_no || b.details.policy_no || '')}</td></tr>`).join('');
   const body = `${guestBox(d)}
     ${t.arrival_details || t.departure_details ? `<div class="grid" style="margin-top:10px"><div class="box"><b>Arrival</b><br>${esc(t.arrival_details || '—')}</div><div class="box"><b>Departure</b><br>${esc(t.departure_details || '—')}</div></div>` : ''}
-    ${hotels ? `<h2>Hotels</h2><table><thead><tr><th>Hotel</th><th>Stay</th><th>Room</th><th>Confirmation</th></tr></thead><tbody>${hotels}</tbody></table>` : ''}
+    ${hotels || pkgHotels ? `<h2>Hotels</h2><table><thead><tr><th>Hotel</th><th>Stay</th><th>Room</th><th>Confirmation</th></tr></thead><tbody>${hotels}${pkgHotels}</tbody></table>` : ''}
     ${services ? `<h2>Services</h2><table><thead><tr><th>Date</th><th>Service</th><th>Details</th></tr></thead><tbody>${services}</tbody></table>` : ''}
     ${s.show_itinerary && it.days?.length ? `<h2>Itinerary</h2>${it.days.map((day, k) => `<div class="day"><div class="n">DAY ${k + 1}${t.start_date ? `<small>${fmtDay(addDaysIso(String(t.start_date).slice(0, 10), k))}</small>` : ''}</div><div><b>${esc(day.title)}</b><div>${nl(day.description)}</div></div></div>`).join('')}` : ''}
     <div class="note">${nl(fill(tpl.body, vars(d)))}</div>
@@ -206,6 +259,7 @@ export function serviceVoucherHtml(d, bookingId) {
   const b = d.bookings.find((x) => x.id === Number(bookingId));
   if (!b) return page(d, 'Voucher', '<p>Booking not found</p>');
   const def = SERVICES[b.service];
+  if (b.service === 'land_package') return landPackageVoucherHtml(d, b);
   const rows = [...def.quoteFields, ...def.bookingFields].filter((f) => f.type !== 'ref' && b.details[f.key] !== undefined && b.details[f.key] !== '' && b.details[f.key] !== null && !/^rate_|fx_rate|fare_/.test(f.key))
     .map((f) => `<div>${esc(f.label)}</div><div>${esc(Array.isArray(b.details[f.key]) ? b.details[f.key].join(', ') : b.details[f.key])}</div>`).join('');
   const body = `${guestBox(d)}<h2>${def.icon} ${esc(b.title)}</h2><div class="kv"><div>Date</div><div>${b.service_date ? fmtDay(b.service_date) : '—'}</div><div>Status</div><div><span class="badge">${esc(statusLabel(b))}</span></div>
@@ -214,6 +268,29 @@ export function serviceVoucherHtml(d, bookingId) {
   return page(d, `${def.label} Voucher`, body);
 }
 export const openServiceVoucher = (d, id) => open(serviceVoucherHtml(d, id));
+
+/** Hotels of a vendor land package with their stay dates (vendor details are never printed). */
+function landHotelRows(b) {
+  const p = b.details.package || {}; const start = b.service_date ? String(b.service_date).slice(0, 10) : null;
+  const conf = b.details.hotel_confirmations || {};
+  return (p.hotels || []).flatMap((h) => ranges((h.nights || []).map(Number)).map(([a, z]) => ({
+    hotel: h.hotel, city: h.city, room: h.room, meal: h.meal_plan, nights: z - a + 1,
+    checkin: start ? addDaysIso(start, a - 1) : null, checkout: start ? addDaysIso(start, z) : null,
+    confirmation: conf[h.hotel] || b.details.confirmation_no || '', status: statusLabel(b),
+  })));
+}
+function landPackageVoucherHtml(d, b) {
+  const p = b.details.package || {};
+  const hotels = landHotelRows(b).map((r) => `<tr><td><b>${esc(r.hotel)}</b><div class="muted small">${esc(r.city)}</div></td><td>${r.checkin ? `${fmtDay(r.checkin)} → ${fmtDay(r.checkout)}` : ''}<div class="muted small">${r.nights} night(s)</div></td>
+    <td>${esc([r.room, r.meal].filter(Boolean).join(' · '))}</td><td>${r.confirmation ? `<b>${esc(r.confirmation)}</b>` : `<span class="muted">${esc(r.status)}</span>`}</td></tr>`).join('');
+  const body = `${guestBox(d)}<h2>${esc(customerTitle(b))}</h2>
+    <div class="kv"><div>Starts</div><div>${b.service_date ? fmtDay(b.service_date) : '—'}</div><div>Ends</div><div>${b.end_date ? fmtDay(b.end_date) : '—'}</div><div>Status</div><div><span class="badge">${esc(statusLabel(b))}</span></div>
+    ${p.vehicle ? `<div>Transport</div><div>${esc(p.vehicle)}</div>` : ''}${b.details.confirmation_no ? `<div>Confirmation</div><div><b>${esc(b.details.confirmation_no)}</b></div>` : ''}</div>
+    ${hotels ? `<h2>Hotels</h2><table><thead><tr><th>Hotel</th><th>Stay</th><th>Room / meals</th><th>Confirmation</th></tr></thead><tbody>${hotels}</tbody></table>` : ''}
+    ${p.transport?.length ? `<h2>Transfers & sightseeing</h2><table><tbody>${p.transport.map((x) => `<tr><td>Day ${x.day}</td><td>${esc(x.service)}</td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="note">${nl(fill(d.templates.trip_voucher.body, vars(d)))}</div><div class="sign">For ${esc(d.org.name)}</div>`;
+  return page(d, 'Package Voucher', body);
+}
 
 /* --------------------------- Invoice & receipt --------------------------- */
 export function invoiceHtml(d) {

@@ -1,7 +1,7 @@
 import { pool, query, one } from '../../core/db.js';
 import { j } from '../../core/http.js';
 
-const shape = (s) => s && ({ ...s, closing_dates: j(s.closing_dates, []) });
+const shape = (s) => s && ({ ...s, closing_dates: j(s.closing_dates, []), pickup_points: j(s.pickup_points, []), drop_points: j(s.drop_points, []) });
 
 export async function list(orgId, f) {
   const where = ['t.org_id = ?']; const params = [orgId];
@@ -20,8 +20,8 @@ export async function list(orgId, f) {
   return { rows: rows.map(shape), total: Number(total), page, size };
 }
 export const get = async (orgId, id) => shape(await one('SELECT * FROM transport_services WHERE id = ? AND org_id = ?', [id, orgId]));
-const COLS = ['duty_code', 'from_location', 'from_short', 'to_location', 'to_short', 'service', 'code', 'distance_km', 'start_time', 'duration_mins', 'day_schedule', 'closing_weekdays', 'closing_dates'];
-const vals = (b) => COLS.map((c) => (c === 'closing_dates' ? JSON.stringify(b[c] || []) : b[c] === '' ? null : b[c] ?? null));
+const COLS = ['duty_code', 'from_location', 'from_short', 'to_location', 'to_short', 'service', 'code', 'distance_km', 'start_time', 'duration_mins', 'day_schedule', 'closing_weekdays', 'closing_dates', 'pickup_points', 'drop_points'];
+const vals = (b) => COLS.map((c) => (['closing_dates', 'pickup_points', 'drop_points'].includes(c) ? JSON.stringify(b[c] || []) : b[c] === '' ? null : b[c] ?? null));
 export async function create(orgId, b) {
   const r = await query(`INSERT INTO transport_services (org_id, ${COLS.join(',')}) VALUES (?, ${COLS.map(() => '?').join(',')})`, [orgId, ...vals(b)]);
   return r.insertId;
@@ -32,3 +32,18 @@ export const locations = (orgId) => query(
   `SELECT x.loc AS name, COUNT(*) AS services FROM (SELECT from_location AS loc FROM transport_services WHERE org_id = ? UNION ALL
    SELECT to_location FROM transport_services WHERE org_id = ? AND to_location IS NOT NULL AND to_location <> '') x GROUP BY x.loc ORDER BY x.loc`, [orgId, orgId]
 );
+
+/** All services of one From → To route (Sembark-style route form). */
+export async function route(orgId, from, to) {
+  return (await query('SELECT * FROM transport_services WHERE org_id = ? AND from_location = ? AND COALESCE(to_location, \'\') = ? ORDER BY service', [orgId, from, to || ''])).map(shape);
+}
+export async function saveRoute(orgId, b) {
+  const ids = [];
+  for (const sv of b.services) {
+    const row = { ...sv, from_location: b.from_location, from_short: b.from_short, to_location: b.to_location, to_short: b.to_short,
+      duty_code: sv.duty_code || b.duty_code, pickup_points: sv.pickup_points?.length && !b.same_points ? sv.pickup_points : b.pickup_points,
+      drop_points: sv.drop_points?.length && !b.same_points ? sv.drop_points : b.drop_points };
+    if (sv.id) { await update(orgId, sv.id, row); ids.push(sv.id); } else ids.push(await create(orgId, row));
+  }
+  return ids;
+}

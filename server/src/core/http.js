@@ -36,7 +36,8 @@ export const j = (v, fallback = null) => {
 };
 
 export const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-export const todayIso = () => new Date().toISOString().slice(0, 10);
+/** Today in the organisation's timezone (not the server's). */
+export { todayInTz as todayIso, nowInTz } from './context.js';
 export const addDays = (date, n) => {
   const d = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + Number(n || 0));
@@ -47,5 +48,6 @@ export const addDays = (date, n) => {
 export const zDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a date');
 export const zOptDate = z.union([zDate, z.literal(''), z.null()]).optional().transform((v) => v || null);
 export const zId = z.coerce.number().int().positive();
-export const zOptId = z.union([z.coerce.number().int().positive(), z.literal(''), z.null()]).optional().transform((v) => v || null);
-export const zText = (max = 255) => z.string().trim().max(max).optional().default('');
+export const zOptId = z.union([z.literal(''), z.null(), z.coerce.number().int().positive()]).optional().transform((v) => v || null);
+/** Optional text: missing, null and '' all become ''. */
+export const zText = (max = 255) => z.union([z.null(), z.string().trim().max(max)]).optional().transform((v) => v ?? '');

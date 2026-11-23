@@ -5,7 +5,7 @@ CREATE DATABASE IF NOT EXISTS ibt_crm CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 USE ibt_crm;
 
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS notifications, rate_uploads, rates, activity_services, activities, transport_services, hotel_closures, hotels,
+DROP TABLE IF EXISTS attachments, notifications, rate_uploads, rates, activity_services, activities, transport_services, hotel_closures, hotels,
   suppliers, org_content, payment_preferences, org_templates, org_bank_accounts, org_offices, options, admin_notes, platform_invoices,
   transactions, instalments, bookings, quote_items, quotes, tasks, trip_logs, trips, trip_counters, master_records,
   audit_logs, user_roles, role_permissions, roles, users,
@@ -339,6 +339,8 @@ CREATE TABLE transport_services (
   start_time VARCHAR(10), duration_mins INT NULL,
   day_schedule TEXT,
   closing_weekdays VARCHAR(40), closing_dates JSON NULL,
+  pickup_points JSON NULL,             -- ["Airport", "Railway Station", "@checkin_hotel"]
+  drop_points JSON NULL,
   entry_method ENUM('manual','upload') NOT NULL DEFAULT 'manual',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -353,6 +355,8 @@ CREATE TABLE activities (
   name VARCHAR(200) NOT NULL,
   city VARCHAR(100),
   description TEXT,
+  tourist_types VARCHAR(255) NOT NULL DEFAULT 'Adult, Child (6-12)',  -- ticket age / group configuration
+  closing_weekdays VARCHAR(40), closing_dates JSON NULL,
   entry_method ENUM('manual','upload') NOT NULL DEFAULT 'manual',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -429,6 +433,8 @@ CREATE TABLE trips (
   services JSON NULL,                  -- services the client asked for
   source_id INT NULL,
   ref_id VARCHAR(60),
+  ref_id_normalized VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+    GENERATED ALWAYS AS (NULLIF(UPPER(TRIM(ref_id)), '')) STORED,
   destination_ids JSON NULL,
   start_date DATE NULL,                -- optional for visa / passport only enquiries
   nights INT NULL,
@@ -460,6 +466,7 @@ CREATE TABLE trips (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_trip_no (org_id, trip_no),
+  UNIQUE KEY uq_trips_org_ref_normalized (org_id, ref_id_normalized),
   INDEX idx_trip_stage (org_id, stage, start_date),
   FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE
 );
@@ -639,5 +646,26 @@ CREATE TABLE platform_invoices (        -- monthly subscription invoices issued 
   paid_at DATETIME NULL, payment_ref VARCHAR(100),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_inv (org_id, period),
+  FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE
+);
+
+-- Files kept for records: vendor land package PDFs / pasted emails, booking confirmations, invoices
+CREATE TABLE attachments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  org_id INT NOT NULL,
+  trip_id INT NULL,
+  quote_id INT NULL,
+  supplier_id INT NULL,
+  kind VARCHAR(30) NOT NULL DEFAULT 'vendor_package',   -- vendor_package | confirmation | invoice | other
+  title VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255),
+  mime VARCHAR(100),
+  size INT NOT NULL DEFAULT 0,
+  data LONGBLOB NULL,                  -- the file itself (NULL for pasted email text)
+  text MEDIUMTEXT,                     -- extracted / pasted text
+  amount DECIMAL(14,2) NULL, currency CHAR(3) NULL,   -- vendor price, handy for reconciliation / Tally
+  created_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_att (org_id, trip_id), INDEX idx_att_sup (org_id, supplier_id),
   FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE
 );

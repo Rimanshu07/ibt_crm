@@ -47,10 +47,18 @@ export default function QuotesTab({ trip, reload }) {
               ))}</tbody>
               <tfoot><tr><td colSpan={showCost ? 4 : 2} className="right">{q.pricing.tax_name} {q.pricing.tax_rate}%</td><td className="num">{money(q.total_tax, q.currency)}</td></tr></tfoot>
             </table>
-            <div className="row wrap mt">
-              {hasFeature('share_quotes') && can('quotes.share') && <ShareButtons trip={trip} quote={q} />}
-              {can('quotes.create') && <button className="btn secondary small" onClick={() => setEditing(q)}>Edit itinerary</button>}
-              {can('quotes.create') && !converted && <Link className="btn secondary small" to={`/app/trips/${trip.id}/quote?from=${q.id}`}>Duplicate & edit</Link>}
+            <div className="quote-actions mt">
+              {can('quotes.create') && (
+                <div className="action-group manage">
+                  <span className="group-label">Quote</span>
+                  {trip.converted_quote_id !== q.id && <Link className="btn edit small" to={`/app/trips/${trip.id}/quote?edit=${q.id}`}>✎ Edit quote</Link>}
+                  <Link className="btn duplicate small" to={`/app/trips/${trip.id}/quote?from=${q.id}`} title="Copy this quote into a new version">⧉ Duplicate as new version</Link>
+                  <button className="btn secondary small" onClick={() => setEditing(q)}>Edit itinerary</button>
+                </div>
+              )}
+              {hasFeature('share_quotes') && can('quotes.share') && (
+                <div className="action-group"><span className="group-label">Share</span><ShareButtons trip={trip} quote={q} /></div>
+              )}
               <span className="spacer" />
               {!converted && hasFeature('conversion') && can('trips.convert') && <button className="btn good" onClick={() => setConverting(q)}>Convert with this quote</button>}
             </div>
@@ -77,7 +85,7 @@ function ShareButtons({ trip, quote }) {
   });
   return (
     <>
-      <button className="btn secondary small" onClick={() => withDocs(openQuote)}>📄 PDF / Print</button>
+      <button className="btn secondary small" onClick={() => withDocs(openQuote)}>PDF / Print</button>
       <button className="btn secondary small" onClick={whatsapp}>WhatsApp</button>
       <button className="btn secondary small" onClick={email}>Email</button>
       <button className="btn secondary small" onClick={copy}>Copy text</button>

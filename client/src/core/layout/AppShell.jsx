@@ -3,20 +3,25 @@ import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react
 import { useAuth } from '../auth.jsx';
 import { api, qs, ago, fmtDate } from '../api.js';
 import { Loading } from '../ui.jsx';
-import { accountingMenu, bookingsMenu, profileMenu, servicesMenu, suppliersMenu, ADMIN_MENU } from './nav.js';
+import { setThemePref } from '../theme.js';
+import { accountingMenu, bookingsMenu, tripsMenu, profileMenu, servicesMenu, suppliersMenu, ADMIN_MENU } from './nav.js';
 
 /** Dropdown in the top bar; closes on outside click and on navigation. */
+/** Split a menu into titled sections (a title item starts a section; dividers are dropped inside sections). */
+function groupsOf(items = []) {
+  if (!items.some((i) => i.title)) return [{ items: items.filter((i) => !i.divider) }];
+  const out = [];
+  for (const i of items) {
+    if (i.title) out.push({ title: i.title, items: [] });
+    else if (!i.divider) { if (!out.length) out.push({ title: '', items: [] }); out[out.length - 1].items.push(i); }
+  }
+  return out.filter((g) => g.items.length);
+}
+
 function NavMenu({ label, items, right, cols, active, badge, render }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const loc = useLocation();
-  const sections = [];
-  if (cols) {
-    for (const item of items) {
-      if (item.title) sections.push({ title: item.title, items: [] });
-      else if (!item.divider && sections.length) sections[sections.length - 1].items.push(item);
-    }
-  }
   useEffect(() => setOpen(false), [loc.pathname, loc.search]);
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -29,23 +34,16 @@ function NavMenu({ label, items, right, cols, active, badge, render }) {
         {label}{badge}{!render && <span className="small">▾</span>}
       </button>
       {open && (
-        <div className={`menu ${right ? 'right' : ''} ${cols ? 'cols' : ''}`}>
-          {render ? render(() => setOpen(false)) : cols ? (
-            <div className="menu-sections">
-              {sections.map((section) => (
-                <section key={section.title} className="menu-section">
-                  <div className="menu-title">{section.title}</div>
-                  {section.items.map((item) => (
-                    <Link key={item.to} to={item.to}>
-                      <span>{item.icon ? `${item.icon} ` : ''}{item.label}</span>
-                      {item.count ? <span className="count">{item.count}</span> : null}
-                    </Link>
-                  ))}
-                </section>
-              ))}
-            </div>
-          ) : items.map((i, k) => (i.divider ? <hr key={k} /> : i.title ? <div key={k} className="menu-title">{i.title}</div>
-            : <Link key={i.to} to={i.to}><span>{i.icon ? `${i.icon} ` : ''}{i.label}</span>{i.count ? <span className="count">{i.count}</span> : null}</Link>))}
+        <div className={`menu ${right ? 'right' : ''} ${groupsOf(items).length > 1 ? 'mega' : ''} ${cols && groupsOf(items).length > 3 ? 'two-col' : ''}`}>
+          {render ? render(() => setOpen(false)) : groupsOf(items).length > 1
+            ? groupsOf(items).map((g, k) => (
+              <div key={k} className="menu-group">
+                {g.title && <div className="menu-group-title"><i />{g.title}</div>}
+                {g.items.map((i) => <Link key={`${i.to}${i.label}`} to={i.to}><span>{i.label}</span>{i.count ? <span className="count">{i.count}</span> : null}</Link>)}
+              </div>
+            ))
+            : items.map((i, k) => (i.divider ? <hr key={k} /> : i.title ? <div key={k} className="menu-title">{i.title}</div>
+              : <Link key={`${i.to}${i.label}`} to={i.to}><span>{i.label}</span>{i.count ? <span className="count">{i.count}</span> : null}</Link>))}
         </div>
       )}
     </div>
@@ -124,19 +122,22 @@ export function AppShell() {
     <>
       <header className="topnav">
         <Link to="/app" className="logo"><span className="logo-mark">IBT</span><span>{me.org.name}</span></Link>
-        {hasFeature('crm_leads') && can('trips.view') && <NavLink to="/app/trips" className={`nav-btn ${is('/app/trips') ? 'active' : ''}`}>Trips</NavLink>}
+        {hasFeature('crm_leads') && can('trips.view') && <NavMenu label="Trips" items={clean(tripsMenu())} active={is('/app/trips') || is('/app/reports')} />}
         <NavMenu label="Bookings" items={bookings} active={is('/app/bookings') || is('/app/operations') || is('/app/tasks')} badge={open ? <span className="count">{open}</span> : null} />
         {hasFeature('accounting') && can('payments.log', 'accounts.view') && <NavMenu label="Accounting" items={clean(accountingMenu())} active={is('/app/accounting')} />}
         <TripSearch />
         <NavMenu label="Services" items={clean(servicesMenu())} right cols active={is('/app/services')} />
         <NavMenu label="Suppliers" items={clean(suppliersMenu())} right active={is('/app/suppliers')} />
         <Bell />
-        <NavLink to="/app" end className="nav-btn" title="Dashboard">⌂</NavLink>
+        <NavLink to="/app" end className="nav-btn" title="Dashboard">🏠</NavLink>
         <NavMenu right label={<span title={me.user.name}>👤</span>} render={() => (
           <>
             <div style={{ padding: '6px 10px' }}><strong>{me.user.name}</strong><div className="muted small">{me.user.email}</div><div className="muted small">{me.roles?.map((r) => r.name).join(', ') || (me.user.is_org_owner ? 'Owner' : '')}</div></div>
             <hr />
             {clean(profileMenu()).map((i, k) => (i.divider ? <hr key={k} /> : <Link key={i.to} to={i.to}>{i.label}</Link>))}
+            <button type="button" className="menu-btn" onClick={() => { const dark = document.documentElement.getAttribute('data-theme') === 'dark'; setThemePref(dark ? 'light' : 'dark'); }}>
+              Switch to {typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'} theme
+            </button>
             <hr />
             <button onClick={() => { logout(); nav('/login'); }}>Log out</button>
           </>

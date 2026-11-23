@@ -69,8 +69,8 @@ export async function reactivate(req, res) {
 export async function updateOrg(req, res) {
   const body = validate(z.object({
     plan_id: z.coerce.number().int().positive().optional(),
-    org_fee_override: z.union([z.coerce.number().min(0), z.null()]).optional(),
-    user_fee_override: z.union([z.coerce.number().min(0), z.null()]).optional(),
+    org_fee_override: z.union([z.null(), z.coerce.number().min(0)]).optional(),
+    user_fee_override: z.union([z.null(), z.coerce.number().min(0)]).optional(),
     trial_ends_at: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()]).optional(),
     apply_plan_features: z.boolean().optional(),
   }), req.body);
@@ -127,7 +127,7 @@ export async function plans(_req, res) { res.json({ data: await M.plans() }); }
 const planSchema = z.object({
   name: z.string().trim().min(2).max(80), description: zText(255), currency: z.string().length(3),
   org_fee_monthly: z.coerce.number().min(0), user_fee_monthly: z.coerce.number().min(0),
-  max_users: z.union([z.coerce.number().int().positive(), z.null()]).optional().default(null),
+  max_users: z.union([z.null(), z.coerce.number().int().positive()]).optional().default(null),
   trial_days: z.coerce.number().int().min(0).max(365).default(14), is_active: z.boolean().default(true), features: z.array(z.string()).default([]),
 });
 export async function savePlan(req, res) {

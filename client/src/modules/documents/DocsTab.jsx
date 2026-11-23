@@ -4,6 +4,7 @@ import { money, fmtDate } from '../../core/api.js';
 import { useAuth } from '../../core/auth.jsx';
 import { Empty, Loading, useToast } from '../../core/ui.jsx';
 import { BookingStatus } from '../trips/common.jsx';
+import Attachments from './Attachments.jsx';
 import { activityVoucherEmail, loadDocs, openHotelVoucher, openInvoice, openQuote, openReceipt, openServiceVoucher, openTripVoucher } from './documents.js';
 
 /** All printable documents of a trip. */
@@ -33,13 +34,14 @@ export default function DocsTab({ trip }) {
                 <td><BookingStatus service={b.service} status={b.status} /></td>
                 <td className="right nowrap">
                   <button className="btn secondary small" onClick={() => (b.service === 'hotel' ? openHotelVoucher(d, b.id) : openServiceVoucher(d, b.id))}>Voucher</button>
-                  {b.service === 'activity' && <button className="btn ghost small" onClick={() => mail(b)}>✉ Email</button>}
+                  {b.service === 'activity' && <button className="btn ghost small" onClick={() => mail(b)}>Email</button>}
                 </td>
               </tr>
             ))}</tbody></table>
           )}
         </div>
       )}
+      <Attachments tripId={trip.id} title="Vendor packages & files (kept for records)" />
       {d.receipts.length > 0 && (
         <div className="card flush">
           <div className="card-head"><h2>Payment receipts</h2></div>

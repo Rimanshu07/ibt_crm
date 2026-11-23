@@ -24,6 +24,7 @@ export async function list(orgId, f) {
 export async function get(orgId, id) {
   const a = await one('SELECT * FROM activities WHERE id = ? AND org_id = ?', [id, orgId]);
   if (!a) return null;
+  a.closing_dates = j(a.closing_dates, []);
   a.services = (await query('SELECT * FROM activity_services WHERE activity_id = ? ORDER BY name', [id])).map((s) => ({ ...s, closing_dates: j(s.closing_dates, []) }));
   return a;
 }
@@ -35,10 +36,10 @@ export function save(orgId, id, b) {
   return transaction(async (c) => {
     let aid = id;
     if (aid) {
-      const [r] = await c.execute('UPDATE activities SET name = ?, city = ?, description = ? WHERE id = ? AND org_id = ?', [b.name, b.city || null, b.description || null, aid, orgId]);
+      const [r] = await c.execute('UPDATE activities SET name = ?, city = ?, description = ?, tourist_types = ?, closing_weekdays = ?, closing_dates = ? WHERE id = ? AND org_id = ?', [b.name, b.city || null, b.description || null, b.tourist_types, b.closing_weekdays || null, JSON.stringify(b.closing_dates || []), aid, orgId]);
       if (!r.affectedRows) return null;
     } else {
-      const [r] = await c.execute('INSERT INTO activities (org_id, name, city, description) VALUES (?,?,?,?)', [orgId, b.name, b.city || null, b.description || null]);
+      const [r] = await c.execute('INSERT INTO activities (org_id, name, city, description, tourist_types, closing_weekdays, closing_dates) VALUES (?,?,?,?,?,?,?)', [orgId, b.name, b.city || null, b.description || null, b.tourist_types, b.closing_weekdays || null, JSON.stringify(b.closing_dates || [])]);
       aid = r.insertId;
     }
     const keep = [];

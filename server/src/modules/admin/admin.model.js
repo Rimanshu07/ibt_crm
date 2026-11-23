@@ -92,48 +92,29 @@ const CUSTOMER_PREFS = [
 
 /** First approval: roles, tax, starter content, payment preferences, a cash account. */
 export async function seedOrganisation(c, org) {
-  const count = async (sql, params = [org.id]) => {
-    const [[row]] = await c.execute(sql, params);
-    return Number(row.n);
-  };
-
-  if (await count('SELECT COUNT(*) AS n FROM roles WHERE org_id = ?') === 0) {
-    for (const role of DEFAULT_ROLES) {
-      const [r] = await c.execute('INSERT INTO roles (org_id, name, description, scope, is_system) VALUES (?,?,?,?,1)', [org.id, role.name, role.description, role.scope]);
-      for (const p of role.permissions) await c.execute('INSERT INTO role_permissions (role_id, permission) VALUES (?,?)', [r.insertId, p]);
-      if (role.name === 'Admin') await c.execute('INSERT IGNORE INTO user_roles (user_id, role_id) SELECT id, ? FROM users WHERE org_id = ? AND is_org_owner = 1', [r.insertId, org.id]);
-    }
+  const [[existing]] = await c.execute('SELECT COUNT(*) AS n FROM roles WHERE org_id = ?', [org.id]);
+  if (Number(existing.n) > 0) return;
+  for (const role of DEFAULT_ROLES) {
+    const [r] = await c.execute('INSERT INTO roles (org_id, name, description, scope, is_system) VALUES (?,?,?,?,1)', [org.id, role.name, role.description, role.scope]);
+    for (const p of role.permissions) await c.execute('INSERT INTO role_permissions (role_id, permission) VALUES (?,?)', [r.insertId, p]);
+    if (role.name === 'Admin') await c.execute('INSERT IGNORE INTO user_roles (user_id, role_id) SELECT id, ? FROM users WHERE org_id = ? AND is_org_owner = 1', [r.insertId, org.id]);
   }
-
   const india = org.country_code === 'IN';
-  if (await count('SELECT COUNT(*) AS n FROM tax_types WHERE org_id = ?') === 0) {
-    const rate = org.status === 'active' ? Number(org.default_tax_rate || 0) : (india ? 5 : 0);
-    await c.execute('INSERT INTO tax_types (org_id, name, rate, is_default) VALUES (?,?,?,1)', [org.id, india ? 'GST' : 'Tax', rate]);
-    if (org.status !== 'active') await c.execute('UPDATE organizations SET default_tax_rate = ? WHERE id = ?', [rate, org.id]);
+  await c.execute('INSERT INTO tax_types (org_id, name, rate, is_default) VALUES (?,?,?,1)', [org.id, india ? 'GST' : 'Tax', india ? 5 : 0]);
+  await c.execute('UPDATE organizations SET default_tax_rate = ? WHERE id = ?', [india ? 5 : 0, org.id]);
+  for (const x of DEFAULT_CONTENT) {
+    await c.execute('INSERT INTO org_content (org_id, kind, service, title, inclusions, exclusions, body) VALUES (?,?,?,?,?,?,?)',
+      [org.id, x.kind, x.service, x.title, JSON.stringify(x.inclusions || []), JSON.stringify(x.exclusions || []), x.body || null]);
   }
-
-  if (await count('SELECT COUNT(*) AS n FROM org_content WHERE org_id = ?') === 0) {
-    for (const x of DEFAULT_CONTENT) {
-      await c.execute('INSERT INTO org_content (org_id, kind, service, title, inclusions, exclusions, body) VALUES (?,?,?,?,?,?,?)',
-        [org.id, x.kind, x.service, x.title, JSON.stringify(x.inclusions || []), JSON.stringify(x.exclusions || []), x.body || null]);
-    }
+  for (const [i, parts] of SUPPLIER_PREFS.entries()) {
+    await c.execute("INSERT INTO payment_preferences (org_id, kind, service, name, parts, is_default) VALUES (?, 'supplier', 'all', ?, ?, ?)", [org.id, describePref(parts), JSON.stringify(parts), i === 0 ? 1 : 0]);
   }
-
-  for (const [kind, preferences] of [['supplier', SUPPLIER_PREFS], ['customer', CUSTOMER_PREFS]]) {
-    if (await count('SELECT COUNT(*) AS n FROM payment_preferences WHERE org_id = ? AND kind = ?', [org.id, kind]) > 0) continue;
-    for (const [i, parts] of preferences.entries()) {
-      await c.execute('INSERT INTO payment_preferences (org_id, kind, service, name, parts, is_default) VALUES (?, ?, ?, ?, ?, ?)',
-        [org.id, kind, 'all', describePref(parts), JSON.stringify(parts), i === 0 ? 1 : 0]);
-    }
+  for (const [i, parts] of CUSTOMER_PREFS.entries()) {
+    await c.execute("INSERT INTO payment_preferences (org_id, kind, service, name, parts, is_default) VALUES (?, 'customer', 'all', ?, ?, ?)", [org.id, describePref(parts), JSON.stringify(parts), i === 0 ? 1 : 0]);
   }
-
-  if (await count('SELECT COUNT(*) AS n FROM org_bank_accounts WHERE org_id = ?') === 0) {
-    await c.execute("INSERT INTO org_bank_accounts (org_id, kind, name, currency, show_on_docs, is_default) VALUES (?, 'cash', 'Cash in hand', ?, 0, 0)", [org.id, org.base_currency]);
-  }
-  if (await count('SELECT COUNT(*) AS n FROM org_offices WHERE org_id = ?') === 0) {
-    await c.execute("INSERT INTO org_offices (org_id, name, address, city, country, phone, email, tax_id, is_head) VALUES (?, 'Head Office', ?, ?, ?, ?, ?, ?, 1)",
-      [org.id, org.address || null, org.city || null, org.country_code, org.phone || null, org.email, org.tax_id || null]);
-  }
+  await c.execute("INSERT INTO org_bank_accounts (org_id, kind, name, currency, show_on_docs, is_default) VALUES (?, 'cash', 'Cash in hand', ?, 0, 0)", [org.id, org.base_currency]);
+  await c.execute("INSERT INTO org_offices (org_id, name, address, city, country, phone, email, tax_id, is_head) VALUES (?, 'Head Office', ?, ?, ?, ?, ?, ?, 1)",
+    [org.id, org.address || null, org.city || null, org.country_code, org.phone || null, org.email, org.tax_id || null]);
 }
 
 /* Plans & features */

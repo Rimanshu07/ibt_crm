@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MASTER_TYPES } from '@shared/catalog.js';
-import { api, download, readText } from '../../core/api.js';
+import { api, download } from '../../core/api.js';
+import { readSheet } from '../../core/files.js';
 import { useAuth } from '../../core/auth.jsx';
 import { Field, PageHeader, useToast } from '../../core/ui.jsx';
 
@@ -16,7 +17,7 @@ export default function ImportExport() {
   const base = type === 'supplier' ? '/suppliers' : `/masters/${type}`;
   const run = async (dry) => {
     try {
-      const r = await api(`${base}/import`, { method: 'POST', body: { text: await readText(file), dry_run: dry } });
+      const r = await api(`${base}/import`, { method: 'POST', body: { text: await readSheet(file), dry_run: dry } });
       setResult({ ...r.data, message: r.message, dry }); toast(r.message);
     } catch (e) { toast(e.message, 'bad'); }
   };
@@ -24,7 +25,7 @@ export default function ImportExport() {
     <>
       <PageHeader title="Import / Export" subtitle="Feed your data in bulk from Excel (save as CSV)" />
       <div className="grid grid-3">
-        {[['hotel', '🏨 Hotel prices', 'Season-wise grid with rooms, meal plans and extras. Creates hotels automatically.'], ['transport', '🚗 Transport prices', 'Duty codes, A → B, cab types and seasons.'], ['activity', '🎟️ Activity prices', 'Activities, ticket types, adult/child prices.']]
+        {[['hotel', 'Hotel prices', 'Season-wise grid with rooms, meal plans and extras. Creates hotels automatically.'], ['transport', 'Transport prices', 'Duty codes, A → B, cab types and seasons.'], ['activity', '🎟️ Activity prices', 'Activities, ticket types, adult/child prices.']]
           .filter(([s]) => hasFeature(s)).map(([s, t, d]) => (
             <div key={s} className="card"><h2>{t}</h2><p className="muted small">{d}</p><Link className="btn secondary small" to={`/app/services/prices/${s}/upload`}>Upload price sheet</Link></div>
           ))}
@@ -40,7 +41,7 @@ export default function ImportExport() {
         </div>
         <div className="grid grid-3 mt">
           <Field label="CSV file to import" hint={type === 'supplier' ? 'Columns: name, services (hotel|transport…), kind, contact_name, contact_phone, email, phone, city, state, country, tax_id, pan' : 'Same columns as the export. Matching names are updated; references (e.g. Train) use the name.'}>
-            <input type="file" accept=".csv" onChange={(e) => { setFile(e.target.files[0]); setResult(null); }} /></Field>
+            <input type="file" accept=".csv,.xlsx,.xls,text/csv" onChange={(e) => { setFile(e.target.files[0]); setResult(null); }} /></Field>
           <div className="row" style={{ alignItems: 'end' }}><button className="btn secondary" disabled={!file} onClick={() => run(true)}>Check file</button><button className="btn" disabled={!file} onClick={() => run(false)}>Import</button></div>
         </div>
         {result && (

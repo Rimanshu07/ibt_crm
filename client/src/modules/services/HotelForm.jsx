@@ -38,7 +38,7 @@ export default function HotelForm() {
   const [prefs, setPrefs] = useState([]);
   const [loaded, setLoaded] = useState(!id);
   const f = useForm({
-    name: '', group_name: '', star: '', location: '', address: '', meal_plans: ['CP', 'MAP', 'AP'], room_types: [{ name: '', aweb: 1, cweb: 1, cnb: 1, rooms: '' }],
+    name: '', group_name: '', star: '', location: '', address: '', meal_plans: ['CP', 'MAP', 'AP'], room_types: [{ name: '', eb: 1, aweb: 1, cweb: 1, cnb: 1, rooms: '' }],
     checkin_time: '12:00', checkout_time: '11:00', child_age_from: 6, child_age_to: 12, payment_pref_id: '', supplier_id: null, phone: '', email: '', link: '', contacts: [], notes: '',
   });
   const v = f.values;
@@ -47,7 +47,7 @@ export default function HotelForm() {
     if (!id) return;
     api(`/hotels/${id}`).then(({ data: h }) => {
       f.setValues({ ...h, group_name: h.group_name || '', star: h.star || '', address: h.address || '', payment_pref_id: h.payment_pref_id || '', phone: h.phone || '', email: h.email || '', link: h.link || '', notes: h.notes || '',
-        room_types: h.room_types.length ? h.room_types.map((r) => ({ aweb: 1, cweb: 1, cnb: 1, rooms: '', ...r })) : [{ name: '', aweb: 1, cweb: 1, cnb: 1, rooms: '' }] });
+        room_types: h.room_types.length ? h.room_types.map((r) => ({ eb: 1, aweb: 1, cweb: 1, cnb: 1, rooms: '', ...r })) : [{ name: '', eb: 1, aweb: 1, cweb: 1, cnb: 1, rooms: '' }] });
       setClosures(h.closures.map((c) => ({ kind: c.kind, date_from: String(c.date_from).slice(0, 10), date_to: String(c.date_to).slice(0, 10), room_types: c.room_types || [] })));
       setLoaded(true);
     });
@@ -82,18 +82,19 @@ export default function HotelForm() {
         <Section title="Services" help="Meal plans and rooms available in this hotel, with the extra beds allowed. Group room types that allow the same extra beds.">
           <Field label="Meal Plans *" error={f.errors.meal_plans}><CreatableSelect list="meal_plans" multiple value={v.meal_plans} onChange={f.set('meal_plans')} /></Field>
           <h3 className="mt">Room Types with Allowed Extra Bed(s) / Mattress(es)</h3>
-          <table><thead><tr><th>Room type</th><th>AWEB(s)</th><th>CWEB(s)</th><th>CNB(s)</th><th>No. of rooms</th><th /></tr></thead>
+          <table><thead><tr><th>Room type</th><th title="Extra beds a room can take (shared by adult and child)">Allowed extra bed(s)</th><th>AWEB(s)</th><th>CWEB(s)</th><th>CNB(s)</th><th>No. of rooms</th><th /></tr></thead>
             <tbody>{v.room_types.map((r, i) => (
               <tr key={i}>
                 <td style={{ minWidth: 220 }}><CreatableSelect list="room_types" value={r.name || null} onChange={(x) => setRoom(i, { name: x || '' })} /></td>
+                <td><input type="number" min={0} max={4} value={r.eb ?? 1} onChange={(e) => setRoom(i, { eb: e.target.value })} style={{ width: 70 }} /></td>
                 {['aweb', 'cweb', 'cnb'].map((k) => <td key={k}><input type="number" min={0} value={r[k]} onChange={(e) => setRoom(i, { [k]: e.target.value })} style={{ width: 70 }} /></td>)}
                 <td><input type="number" min={0} value={r.rooms ?? ''} onChange={(e) => setRoom(i, { rooms: e.target.value })} style={{ width: 80 }} /></td>
                 <td><button className="icon-btn" onClick={() => f.set('room_types')(v.room_types.filter((_, k) => k !== i))}>✕</button></td>
               </tr>
             ))}</tbody></table>
           {f.errors.room_types && <div className="error small">{f.errors.room_types}</div>}
-          <button className="btn secondary small" onClick={() => f.set('room_types')([...v.room_types, { name: '', aweb: 1, cweb: 1, cnb: 1, rooms: '' }])}>+ Add Rooms with Different Extra Beds</button>
-          <p className="muted small mt">AWEB = adult with extra bed · CWEB = child with extra bed · CNB = child without bed</p>
+          <button className="btn secondary small" onClick={() => f.set('room_types')([...v.room_types, { name: '', eb: 1, aweb: 1, cweb: 1, cnb: 1, rooms: '' }])}>+ Add Rooms with Different Extra Beds</button>
+          <p className="muted small mt">Allowed extra beds = beds a room can take in total (AWEB + CWEB share them) · AWEB = adult with extra bed · CWEB = child with extra bed · CNB = child without bed</p>
         </Section>
         <Section title="Soldout Dates" help="Rooms cannot be sold on these dates.">
           <Closures kind="soldout" rows={closures} setRows={setClosures} rooms={roomNames} help={['Block room sales when rooms are fully booked', 'Use for fully booked dates or temporarily unavailable rooms', 'Apply to specific room types or all rooms']} />

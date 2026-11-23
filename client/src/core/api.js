@@ -74,11 +74,17 @@ export const fmtDay = (d) => (d ? toDate(d).toLocaleDateString('en-GB', { weekda
 export const fmtDateTime = (d) => (d ? toDate(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
 export const ago = (d) => {
   if (!d) return '';
-  const s = Math.round((Date.now() - toDate(d).getTime()) / 1000);
+  const s = Math.round((orgNow().getTime() - toDate(d).getTime()) / 1000);
   if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 };
 
-export const todayIso = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+/* ---- Organisation clock: dates and "today" follow the organisation's timezone, not the browser's ---- */
+let ORG_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+export const setOrgTimezone = (tz) => { try { if (tz) { new Intl.DateTimeFormat('en', { timeZone: tz }); ORG_TZ = tz; } } catch { /* keep browser tz */ } };
+export const orgTimezone = () => ORG_TZ;
+export const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: ORG_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+/** Now as a wall-clock Date in the organisation's timezone (server times are stored in the org's timezone). */
+const orgNow = () => new Date(new Date().toLocaleString('en-US', { timeZone: ORG_TZ }));
 export const addDaysIso = (date, n) => { const d = new Date(`${date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + Number(n || 0)); return d.toISOString().slice(0, 10); };
 export const paxText = (adults, children = [], infants = 0) => [adults && `${adults} Adult${adults > 1 ? 's' : ''}`, children?.length && `${children.length} Child${children.length > 1 ? 'ren' : ''} (${children.join(', ')}y)`, infants && `${infants} Infant${infants > 1 ? 's' : ''}`].filter(Boolean).join(', ');

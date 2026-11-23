@@ -44,7 +44,7 @@ const paySchema = z.object({
   amount: z.coerce.number().positive('Enter the amount'),
   paid_at: z.string().min(10, 'Enter the date'),
   mode: z.string().trim().min(1).max(30).default('Bank transfer'),
-  account_id: z.union([z.coerce.number().int().positive(), z.literal(''), z.null()]).optional().transform((v) => v || null),
+  account_id: z.union([z.literal(''), z.null(), z.coerce.number().int().positive()]).optional().transform((v) => v || null),
   reference: zText(100), narration: zText(255),
   carry_forward: z.boolean().default(true),
 });

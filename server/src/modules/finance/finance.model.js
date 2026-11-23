@@ -111,12 +111,12 @@ export function parties(orgId, type) {
   const where = ['i.org_id = ?', 'i.amount > 0']; const params = [orgId];
   if (type) { where.push('i.party_type = ?'); params.push(type); }
   return query(
-    `SELECT i.party_type, i.party_id, IF(i.party_type = 'customer', CONCAT(i.party_name, ' · Trip ', MAX(t.trip_no)), i.party_name) AS party_name, i.direction,
-            MAX(IF(i.party_type = 'customer', i.trip_id, NULL)) AS trip_id,
+    `SELECT i.party_type, i.party_id, IF(i.party_type = 'customer', CONCAT(i.party_name, ' · Trip ', t.trip_no), i.party_name) AS party_name, i.direction,
+            IF(i.party_type = 'customer', i.trip_id, NULL) AS trip_id,
             SUM(i.amount) AS total, SUM(i.paid_amount) AS paid, SUM(i.amount - i.paid_amount) AS balance,
             SUM(IF(i.paid_amount < i.amount AND i.due_date < CURDATE(), i.amount - i.paid_amount, 0)) AS overdue, COUNT(DISTINCT i.trip_id) AS trips
      FROM instalments i JOIN trips t ON t.id = i.trip_id WHERE ${where.join(' AND ')}
-     GROUP BY i.party_type, i.party_id, IF(i.party_type = 'customer', i.trip_id, 0), i.party_name, i.direction ORDER BY balance DESC, party_name LIMIT 2000`, params
+     GROUP BY i.party_type, i.party_id, IF(i.party_type = 'customer', i.trip_id, 0), party_name, i.direction ORDER BY balance DESC, party_name LIMIT 2000`, params
   );
 }
 

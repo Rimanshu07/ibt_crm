@@ -5,7 +5,43 @@ individual services, vendor land packages, trains, passport and travel insurance
 
 Flow: **enquiry → quote → share → convert → bookings → vouchers → payments → accounts → sales report**.
 
-## What's in this release
+## v3.1 – fixes from testing
+
+**Upgrading from v3:** run `server/db/migrations/2026-11-v3.1-fixes.sql`, then open each listed quote with **Edit quote** and Save once.
+
+| # | Fix | Where |
+|---|---|---|
+| 1 | Validation messages appear **in red under the field** (red border too); quote-form problems appear under the line they belong to. | `core/ui.jsx` (`Field`, `useForm`), `QuoteBuilder.jsx` |
+| 2 | Remove / Delete are always **visible red buttons**. | `styles.css` (`.btn.remove`) |
+| 3 | **Accommodation Summary** table (expected vs configured adults/children, rooms, status) + one "Misconfiguration in Hotel Services" box; same for transport (travellers, cabs, seats). | `quote/common.jsx` (`SummaryTable`) |
+| 4 | Everything follows the **organisation's timezone**: each DB session is set to it (NOW(), CURDATE(), created-at times), the server's "today" and the browser's "today" use it. | `core/context.js`, `core/db.js`, `core/api.js` |
+| 5 | **Selling ₹0 bug**: an empty "fixed selling price" was saved as 0, so land package / extra lines got no markup. Empty now stays empty everywhere (same fix applied to every optional number). | all `*.controller.js`, `quotes.items.js` |
+| 6 | Document **Close** button works. Vendor (DMC) names never appear on quotes, vouchers or invoices; land-package hotels are listed on the trip voucher and a package voucher. | `documents.js` |
+| 7 | Quote card: highlighted **Edit quote** (same version) and **Duplicate as new version**, separate from sharing. | `QuotesTab.jsx`, `PUT /quotes/:id` |
+| 8 | Child ages **1–12** (dropdown). | `forms.jsx`, trips validation |
+| 9 | **Light / dark theme** in My Profile → Appearance (and the profile menu). | `core/theme.js`, `styles.css` |
+| 10 | Editing an enquiry no longer fails with "Expected string, received null". | `core/http.js` (`zText`) |
+| 11 | **One price for all transport** (total + buying), cab rows kept for operations. | `quote/TransportSection.jsx` |
+| 12 | Grouped menus like Sembark (Hotels / Transport / Activities / Repository / More services), service emoji removed. | `layout/AppShell.jsx`, `nav.js` |
+| 13 | Flight section: **MakeMyTrip / Goibibo / Skyscanner** buttons open the search pre-filled; **Paste flight details** reads airline, flight no., times, stops and fare from copied text – tick what to fill. | `shared/flightSearch.js`, `quote/OtherSections.jsx` |
+
+## v3 – Sembark-style quote form & vendor land packages
+
+**Upgrading a v2 database:** run `server/db/migrations/2026-11-v3-quote-form-vendor-packages.sql`, then `npm install` in `client/` (adds `pdfjs-dist` for reading vendor PDFs and `xlsx` for Excel uploads).
+
+| Area | What changed | Where |
+|---|---|---|
+| Vendor land package | Upload the vendor's PDF **or paste their email**; hotels, transport, day-wise itinerary, inclusions/exclusions, paid activities and the options/prices (per person or total, any currency) are read into an editable draft. Pick the option, add your flights/visa/extras, apply markup. The quotation goes out in **your** header/footer; the original PDF/email is **kept for records** on the trip (Docs tab) and on the vendor (**Packages received** tab). Vendors are listed under **Suppliers → Land Package Vendors (DMC)**. | `quote/LandPackageSection.jsx`, `shared/vendorPackage.js`, `shared/pdfText.js`, `core/files.js`, `modules/attachments` |
+| Hotels in quote | Stay-night chips "1st N (Mon 30 Nov)", hotel → its own meal plans & room types, pax/room, rooms, **AWEB / CWEB / CNB** (one shared extra bed per room, limits from the hotel's "allowed extra beds"), comp. child. **Per-night price table** (Room × rooms, AWEB, CWEB, CNB, Rate, Given) and **Given Price popup** per night with "apply to all nights". Next Night (disabled when all nights are filled), Duplicate, Add Similar, Remove, "same for all nights". Night-wise **accommodation summary** (missing / short / complete). Special inclusions in hotels. | `quote/HotelsSection.jsx`, `POST /rates/hotel/breakdown` |
+| Transport & activities | Day chips with dates; location → service type → route; start time, duration, pick-up point; cabs **Type × Qty × per-day price** with Given popup; **seat-shortage warning** ("2 seats missing"); Apply to all days, Next Day, Similar, Duplicate, Remove; same cab type for all. Activities with ticket types × qty × price. Extras/sightseeing in transportation. | `quote/TransportSection.jsx` |
+| Flights, visa, others | Round trip / one way / multi-city legs, cost & selling per adult/child/infant. Visa country → visa → type with info card, PAX × rate / given, **currency + exchange rate**. Train / passport / insurance. "Any extra services" for every service + "Any other special service for this trip". | `quote/OtherSections.jsx` |
+| Service sections | "Services in this quote" chips add/remove whole sections (the service booking sections are back). Basic details strip shows **N Nights, N+1 Days**; past start dates are blocked. | `trips/QuoteBuilder.jsx` |
+| One calculator | Browser and server share `shared/quoteItems.js`; the server **re-computes every price** on save. On convert: hotels → one booking per continuous stay, transport → per day per cab, activities → per day, visa → per applicant. | `shared/quoteItems.js`, `modules/quotes/quotes.items.js` |
+| Reports & menus | **Trips** menu: Sales Reports, Quote Bookings Diff, **Trip Check In/Out Report** (month/week/day, received/due, CSV), Hotel Check-In/Outs, Operational Bookings. Operations has a **12-day calendar grid** (counts "new + continuing = total") and list view. | `accounting/CheckInOut.jsx`, `bookings/Operations.jsx`, `GET /reports/check-in-out` |
+| Masters | Organization → **Dropdown Lists** (meal plans, room types, cab types…). Hotel room types have **Allowed extra bed(s)**. Transport **route form** (start/end city, pick-up & drop points, several services, closed days/dates) and listing grouped by route. Activities: **tourist age & group configuration**, closed days/dates. Visa master has a currency. **Add prices manually** or upload **CSV / Excel** price sheets. | `organization/OrgSettings.jsx`, `services/*` |
+| Trip form | Phone with country code, **existing guest check**, searchable destinations, "N Nights, N+1 Days", Total FOC, no past dates, **Upload Via CSV/Excel**. | `trips/common.jsx`, `trips/TripImport.jsx`, `POST /trips/import`, `GET /trips/guest-check` |
+
+## What's in this release (v2)
 
 | # | Request | Where |
 |---|---|---|
@@ -83,6 +119,7 @@ cd server
 cp .env.example .env          # DB_PASSWORD, JWT_SECRET, SUPER_ADMIN_*
 npm install
 npm run setup-db              # DROPS and recreates all tables, loads seed data, creates the Super Admin
+npm run migrate-db            # Creates any missing tables in an existing database; preserves existing data
 npm run dev                   # API on http://localhost:4000
 
 cd ../client
@@ -91,13 +128,13 @@ npm run dev                   # http://localhost:5173
 ```
 
 > This release changes the database schema. `npm run setup-db` drops existing tables. Run it on a fresh/test database.
+> To add tables missing from an existing database without dropping tables or data, run `npm run migrate-db` from `server/`.
 
-For an existing database, run `cd server && npm run migrate-db` to create missing tables and add missing columns from the current schema without dropping existing tables or records.
-Run `cd server && npm run seed-org-defaults` to backfill missing standard setup data for active organisations without replacing existing organisation data.
-For empty service catalogs only, `cd server && npm run seed-demo-services` adds clearly labeled DEMO suppliers, hotels, transport, activities and sample rates for active organisations.
-`cd server && npm run seed-demo-empty-tables` fills remaining empty setup/demo tables. Its sample invoices are void, sample notifications are read, and sample hotel closures are dated in 2099 so they do not affect current operations.
-`cd server && npm run seed-more-demo-services` adds five more clearly labeled examples of each service type for every active organisation without creating additional organizations.
-`cd server && npm run seed-all-services` adds idempotent DEMO train, visa, passport, insurance, land-package, transport cab-type, and supplier catalog records plus their dropdown options. Flights are quote-based and do not have a separate service master table; the script adds a DEMO flight supplier and ensures the airline options exist without creating fake trips or bookings.
+### Trip import reference IDs
+
+CSV/Excel trip imports require `ref_id`; references are trimmed and uppercased, and are unique within each organisation. Re-importing identical rows skips them; rows with an existing reference but changed details are reported as conflicts and do not update the existing trip. Manual trip creation still allows an empty reference.
+
+On an existing database, run `npm run migrate-trip-ref-id` from `server/` before deploying the importer. The migration first reports duplicate references grouped by organisation and stops without changing trip data or the schema if any are found. Resolve those references manually and rerun the migration. Fresh databases receive the generated normalized column and unique index through `schema.sql`.
 
 ## Test the full flow
 
@@ -121,7 +158,9 @@ For empty service catalogs only, `cd server && npm run seed-demo-services` adds 
 ## Status
 
 All code passes syntax checks, ES-module bundling of server and client, and a lint pass for undefined names. The season-grid reader
-and pricing were unit-checked with the three Sembark templates. **It has not yet been run against a live MySQL database**,
+and pricing were unit-checked with the three Sembark templates. v3: the vendor package reader was tested on the Kerala (email-style PDF
+and pasted email) and Sri Lanka (proposal PDF) samples; the shared quote calculator and the server's line validation, pricing,
+booking split and itinerary draft were tested with a stubbed database. **It has not yet been run against a live MySQL database**,
 so expect a round of small fixes on first run.
 
 Next: automated tests and hardening, email sending (SMTP) for quotes and booking enquiries, WhatsApp / email marketing, AI features.

@@ -139,3 +139,26 @@ export async function orgDocs(orgId) {
   }));
   return { org: { ...org, branding: j(org.branding, {}) }, offices, banks, templates };
 }
+
+/** Trip check-in / check-out report (accounting): trips starting or ending in the period, with money. */
+export async function checkInOut(req, from, to) {
+  const s = scopeFilter(req);
+  const [rows] = await pool.query(
+    `SELECT t.id, t.trip_no, t.guest_name, t.guest_phone, t.start_date, t.end_date, t.nights, t.adults, t.children_ages, t.stage, t.currency,
+            t.package_amount, t.destination_ids, u.name AS sales_name,
+            COALESCE((SELECT SUM(i.paid_amount) FROM instalments i WHERE i.trip_id = t.id AND i.direction = 'in'), 0) AS received,
+            COALESCE((SELECT SUM(b.booked_amount) FROM bookings b WHERE b.trip_id = t.id), 0) AS booked_cost,
+            CASE WHEN t.start_date BETWEEN ? AND ? THEN 1 ELSE 0 END AS is_checkin,
+            CASE WHEN t.end_date BETWEEN ? AND ? THEN 1 ELSE 0 END AS is_checkout
+     FROM trips t
+     LEFT JOIN users u ON u.id = t.sales_user_id
+     WHERE t.org_id = ?${s.sql} AND t.stage IN ('converted','on_trip','past') AND (t.start_date BETWEEN ? AND ? OR t.end_date BETWEEN ? AND ?)
+     ORDER BY t.start_date`,
+    [from, to, from, to, req.orgId, ...s.params, from, to, from, to]
+  );
+  const ids = [...new Set(rows.flatMap((r) => j(r.destination_ids, []) || []))];
+  const names = new Map();
+  if (ids.length) { const [m] = await pool.query('SELECT id, name FROM master_records WHERE org_id = ? AND id IN (?)', [req.orgId, ids]); m.forEach((x) => names.set(x.id, x.name)); }
+  return rows.map((r) => ({ ...r, destinations: (j(r.destination_ids, []) || []).map((x) => names.get(Number(x))).filter(Boolean).join(', '),
+    children_ages: j(r.children_ages, []), due: Number(r.package_amount || 0) - Number(r.received || 0) }));
+}

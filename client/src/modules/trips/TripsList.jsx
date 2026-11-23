@@ -5,6 +5,7 @@ import { api, qs, money, fmtDateTime, ago } from '../../core/api.js';
 import { useAuth } from '../../core/auth.jsx';
 import { Empty, Loading, PageHeader, Pagination, Tabs } from '../../core/ui.jsx';
 import { RefPicker } from '../../core/forms.jsx';
+import TripImport from './TripImport.jsx';
 import { StageBadge, ServiceChips, TripForm, tripDates, tripPax, useStaff } from './common.jsx';
 
 /** Trips — Sembark style: stage tabs with counts, filters, rich rows. */
@@ -16,6 +17,8 @@ export default function TripsList() {
   const f = Object.fromEntries(params.entries());
   const [data, setData] = useState(null);
   const [adding, setAdding] = useState(f.new === '1');
+  const [importing, setImporting] = useState(false);
+  useEffect(() => { if (f.new === '1') setAdding(true); }, [f.new]);
   const [showFilters, setShowFilters] = useState(false);
   const set = (patch) => setParams(Object.fromEntries(Object.entries({ ...f, page: 1, ...patch, new: undefined }).filter(([, v]) => v !== undefined && v !== '' && v !== null)));
   useEffect(() => {
@@ -33,6 +36,7 @@ export default function TripsList() {
         actions={<>
           <input placeholder="Search guest, phone, trip no." value={f.q || ''} onChange={(e) => set({ q: e.target.value })} style={{ width: 260 }} />
           <button className="btn secondary" onClick={() => setShowFilters((s) => !s)}>Filters{active ? ` (${active})` : ''}</button>
+          {can('trips.create') && <button className="btn secondary" onClick={() => setImporting(true)}>Upload Via CSV</button>}
           {can('trips.create') && <button className="btn" onClick={() => setAdding(true)}>+ Add Trip</button>}
         </>} />
       {showFilters && (
@@ -81,6 +85,7 @@ export default function TripsList() {
         )}
         {data && <div style={{ padding: '0 16px 12px' }}><Pagination page={data.page} size={data.size} total={data.total} onChange={(p) => setParams({ ...f, page: p })} /></div>}
       </div>
+      {importing && <TripImport onClose={() => setImporting(false)} onDone={() => setParams({ ...f, page: 1 })} />}
       {adding && <TripForm onClose={() => setAdding(false)} onSaved={(id) => nav(`/app/trips/${id}`)} />}
     </>
   );

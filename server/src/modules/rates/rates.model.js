@@ -78,6 +78,13 @@ export async function list(orgId, service, f = {}) {
   return { rows, total: Number(total), page };
 }
 
+export const getOne = (orgId, id) => query('SELECT * FROM rates WHERE org_id = ? AND id = ?', [orgId, id]).then((r) => r[0] || null);
+
+export const update = (orgId, id, b) => pool.query(
+  'UPDATE rates SET price = ?, season = ?, date_from = ?, date_to = ?, weekdays = ?, rate_type = ? WHERE id = ? AND org_id = ?',
+  [b.price, b.season, b.date_from, b.date_to, b.weekdays || null, b.rate_type, id, orgId]
+);
+
 export const remove = (orgId, ids) => pool.query('DELETE FROM rates WHERE org_id = ? AND id IN (?)', [orgId, ids]);
 export const uploads = (orgId, service) => query(
   `SELECT u.*, us.name AS created_by_name, (SELECT COUNT(*) FROM rates r WHERE r.upload_id = u.id) AS rate_count

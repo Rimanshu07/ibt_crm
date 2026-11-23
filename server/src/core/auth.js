@@ -1,3 +1,4 @@
+import { setRequestTz } from './context.js';
 /** Authentication and authorisation middleware. */
 import jwt from 'jsonwebtoken';
 import { one } from './db.js';
@@ -37,11 +38,12 @@ export function requireSuperAdmin(req, _res, next) {
  */
 export const tenant = ah(async (req, _res, next) => {
   if (!req.user?.org_id) throw new ApiError(403, 'FORBIDDEN', 'Organisation users only');
-  const org = await one('SELECT id, status, base_currency, brand_prefix FROM organizations WHERE id = ?', [req.user.org_id]);
+  const org = await one('SELECT id, status, base_currency, brand_prefix, timezone FROM organizations WHERE id = ?', [req.user.org_id]);
   if (!org) throw new ApiError(403, 'FORBIDDEN', 'Organisation not found');
   if (org.status !== 'active') throw new ApiError(403, `ORG_${org.status.toUpperCase()}`, 'Your organisation is not active');
   req.orgId = org.id;
   req.org = org;
+  setRequestTz(org.timezone);
   req.features = await orgFeatures(org.id);
   req.permissions = await userPermissions(req.user.id, req.features);
   next();

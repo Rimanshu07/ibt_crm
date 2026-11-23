@@ -6,6 +6,8 @@ import * as C from './trips.controller.js';
 const router = Router();
 router.use(...orgUser, requireFeature('crm_leads'));
 router.get('/', requirePermission('trips.view'), ah(C.list));
+router.get('/guest-check', requirePermission('trips.create'), ah(C.guestCheck));
+router.post('/import', requirePermission('trips.create'), ah(C.importTrips));
 router.post('/', requirePermission('trips.create'), ah(C.create));
 router.get('/:id', requirePermission('trips.view'), ah(C.get));
 router.put('/:id', requirePermission('trips.edit'), ah(C.update));

@@ -6,9 +6,10 @@ export async function list(req, res) { const r = await M.list(req.orgId, req.que
 export async function get(req, res) { const a = await M.get(req.orgId, Number(req.params.id)); if (!a) throw notFound('Activity'); res.json({ data: a }); }
 export async function cities(req, res) { res.json({ data: await M.cities(req.orgId) }); }
 
-const optNum = z.union([z.coerce.number().min(0), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v === undefined ? null : v));
+const optNum = z.union([z.literal(''), z.null(), z.coerce.number().min(0)]).optional().transform((v) => (v === '' || v === undefined ? null : v));
 const schema = z.object({
   name: z.string().trim().min(2, 'Activity name is required').max(200), city: zText(100), description: zText(5000),
+  tourist_types: z.string().trim().max(255).default('Adult, Child (6-12)'), closing_weekdays: zText(40), closing_dates: z.array(z.object({ from: zDate, to: zDate })).default([]),
   services: z.array(z.object({
     id: z.coerce.number().int().optional(), name: z.string().trim().min(1, 'Ticket / service name is required').max(200), code: zText(60),
     description: zText(5000), open_time: zText(10), close_time: zText(10), duration_mins: optNum, slots: zText(255),

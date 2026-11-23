@@ -15,7 +15,7 @@ export async function saveProfile(req, res) {
   const b = validate(z.object({
     name: z.string().trim().min(2, 'Company name is required').max(150), legal_name: zText(200), phone: zText(30),
     country_code: z.string().length(2), city: zText(100), state: zText(100), pincode: zText(20), address: zText(255),
-    tax_id: zText(50), pan: zText(20), website: zText(150), base_currency: z.string().length(3), timezone: z.string().min(3).max(60),
+    tax_id: zText(50), pan: zText(20), website: zText(150), base_currency: z.string().length(3), timezone: z.string().min(3).max(60).refine((tz) => { try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true; } catch { return false; } }, 'Choose a valid timezone'),
     default_tax_rate: z.coerce.number().min(0).max(100), brand_prefix: zText(10),
   }), req.body);
   await M.updateProfile(req.orgId, b);
@@ -98,10 +98,7 @@ export async function templates(req, res) {
   res.json({ data: TEMPLATES.map((t) => {
     const s = saved.find((x) => x.tkey === t.key);
     const settings = typeof s?.settings === 'string' ? JSON.parse(s.settings) : s?.settings;
-    const settingsChanged = Object.keys(settings || {}).some((key) => JSON.stringify(settings[key]) !== JSON.stringify(t.settings[key]))
-      || Object.keys(t.settings).some((key) => !Object.hasOwn(settings || {}, key));
-    const customised = Boolean(s && (s.subject !== t.subject || s.body !== t.body || settingsChanged));
-    return { ...t, subject: s?.subject ?? t.subject, body: s?.body ?? t.body, settings: { ...t.settings, ...(settings || {}) }, customised, updated_at: customised ? s?.updated_at || null : null };
+    return { ...t, subject: s?.subject ?? t.subject, body: s?.body ?? t.body, settings: { ...t.settings, ...(settings || {}) }, customised: Boolean(s), updated_at: s?.updated_at || null };
   }) });
 }
 

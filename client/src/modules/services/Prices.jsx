@@ -4,6 +4,7 @@ import { api, fmtDateTime } from '../../core/api.js';
 import { useAuth } from '../../core/auth.jsx';
 import { Field, PageHeader, Pills } from '../../core/ui.jsx';
 import PriceList from './PriceList.jsx';
+import ManualPrices from './ManualPrices.jsx';
 
 export const PRICE_TITLES = { hotel: 'Hotel Prices', transport: 'Transport Service Prices', activity: 'Travel Activity Prices' };
 
@@ -14,13 +15,16 @@ export default function Prices() {
   const [f, setF] = useState({ q: '', date: '', rate_type: '', expiring_before: '' });
   const [uploads, setUploads] = useState([]);
   const [show, setShow] = useState('prices');
+  const [manual, setManual] = useState(false);
+  const [reload, setReload] = useState(0);
   useEffect(() => { api(`/rates/${service}/uploads`).then((r) => setUploads(r.data)).catch(() => {}); }, [service]);
   return (
     <>
       <PageHeader title={PRICE_TITLES[service]} actions={<>
         <input placeholder="Search…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} style={{ width: 220 }} />
         <Link className="btn secondary" to={`/app/services/prices/${service}/calculate`}>Calculate Price</Link>
-        {can('masters.import', 'masters.manage') && <Link className="btn" to={`/app/services/prices/${service}/upload`}>Upload Prices</Link>}
+        {can('masters.manage') && <button className="btn secondary" onClick={() => setManual(true)}>+ Add Prices Manually</button>}
+        {can('masters.import', 'masters.manage') && <Link className="btn" to={`/app/services/prices/${service}/upload`}>Upload Prices (CSV / Excel)</Link>}
       </>} />
       <div className="filters row wrap">
         <Pills value={show} onChange={setShow} options={[{ key: 'prices', label: 'Prices' }, { key: 'uploads', label: `Upload history (${uploads.length})` }]} />
@@ -31,12 +35,13 @@ export default function Prices() {
         </>}
       </div>
       <div className="card">
-        {show === 'prices' ? <PriceList service={service} filters={f} /> : (
+        {show === 'prices' ? <PriceList key={reload} service={service} filters={f} /> : (
           <table><thead><tr><th>When</th><th>Files</th><th>Currency</th><th>By</th><th>Result</th><th>Prices</th></tr></thead>
             <tbody>{uploads.map((u) => { const s = typeof u.summary === 'string' ? JSON.parse(u.summary) : u.summary || {};
               return <tr key={u.id}><td>{fmtDateTime(u.created_at)}</td><td className="small">{u.file_name}</td><td>{u.currency}</td><td>{u.created_by_name}</td><td className="small">{s.created || 0} new · {s.updated || 0} updated{s.errors ? ` · ${s.errors} problem(s)` : ''}</td><td>{u.rate_count}</td></tr>; })}</tbody></table>
         )}
       </div>
+      {manual && <ManualPrices service={service} onClose={() => setManual(false)} onSaved={() => { setManual(false); setReload((n) => n + 1); }} />}
     </>
   );
 }

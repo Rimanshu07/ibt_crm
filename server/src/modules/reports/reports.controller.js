@@ -81,3 +81,19 @@ export async function documents(req, res) {
     can_see_cost: hasPerm(req, 'quotes.view_cost'),
   } });
 }
+
+/** Trip check-in / check-out report: ?from=&to= (defaults to this month). */
+export async function checkInOut(req, res) {
+  const today = todayIso();
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : `${today.slice(0, 7)}-01`;
+  const last = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : last;
+  const rows = await M.checkInOut(req, from, to);
+  const sum = (list, k) => list.reduce((s, r) => s + Number(r[k] || 0), 0);
+  const ins = rows.filter((r) => r.is_checkin); const outs = rows.filter((r) => r.is_checkout);
+  res.json({ data: { from, to, rows, totals: {
+    checkins: ins.length, checkouts: outs.length,
+    checkin_amount: sum(ins, 'package_amount'), checkout_amount: sum(outs, 'package_amount'),
+    received: sum(rows, 'received'), due: sum(rows, 'due'), booked_cost: sum(rows, 'booked_cost'),
+  } } });
+}

@@ -42,8 +42,8 @@ export async function get(req, res) {
 
 const updateSchema = z.object({
   status: z.string(),
-  supplier_id: z.union([z.coerce.number().int().positive(), z.null(), z.literal('')]).optional().transform((v) => (v === '' ? null : v)),
-  booked_amount: z.union([z.coerce.number().min(0), z.null(), z.literal('')]).optional().transform((v) => (v === '' ? null : v)),
+  supplier_id: z.union([z.null(), z.literal(''), z.coerce.number().int().positive()]).optional().transform((v) => (v === '' ? null : v)),
+  booked_amount: z.union([z.null(), z.literal(''), z.coerce.number().min(0)]).optional().transform((v) => (v === '' ? null : v)),
   fields: z.record(z.string(), z.any()).default({}),
   notes: zText(500),
   service_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

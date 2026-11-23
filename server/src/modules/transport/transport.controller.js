@@ -6,12 +6,13 @@ export async function list(req, res) { const r = await M.list(req.orgId, req.que
 export async function get(req, res) { const s = await M.get(req.orgId, Number(req.params.id)); if (!s) throw notFound('Service'); res.json({ data: s }); }
 export async function locations(req, res) { res.json({ data: await M.locations(req.orgId) }); }
 
-const optNum = z.union([z.coerce.number().min(0), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v === undefined ? null : v));
+const optNum = z.union([z.literal(''), z.null(), z.coerce.number().min(0)]).optional().transform((v) => (v === '' || v === undefined ? null : v));
 const schema = z.object({
   duty_code: zText(30), from_location: z.string().trim().min(2, 'Start point is required').max(150), from_short: zText(30),
   to_location: zText(150), to_short: zText(30), service: z.string().trim().min(2, 'Service is required').max(150), code: zText(60),
   distance_km: optNum, start_time: zText(10), duration_mins: optNum, day_schedule: zText(5000),
   closing_weekdays: zText(40), closing_dates: z.array(z.object({ from: zDate, to: zDate })).default([]),
+  pickup_points: z.array(z.string().trim().max(150)).max(30).default([]), drop_points: z.array(z.string().trim().max(150)).max(30).default([]),
 });
 export async function save(req, res) {
   const b = validate(schema, req.body);
@@ -23,4 +24,22 @@ export async function setActive(req, res) {
   const { active } = validate(z.object({ active: z.boolean() }), req.body);
   await M.setActive(req.orgId, Number(req.params.id), active);
   res.json({ message: active ? 'Enabled' : 'Disabled' });
+}
+
+export async function getRoute(req, res) {
+  const from = String(req.query.from || ''); if (!from) throw notFound('Route');
+  res.json({ data: await M.route(req.orgId, from, String(req.query.to || '')) });
+}
+const routeSchema = z.object({
+  from_location: z.string().trim().min(2, 'Start city is required').max(150), from_short: zText(30),
+  to_location: zText(150), to_short: zText(30), duty_code: zText(30), same_points: z.boolean().default(true),
+  pickup_points: z.array(z.string().trim().max(150)).max(30).default([]), drop_points: z.array(z.string().trim().max(150)).max(30).default([]),
+  services: z.array(schema.omit({ from_location: true, from_short: true, to_location: true, to_short: true, duty_code: true })
+    .extend({ id: z.coerce.number().int().positive().optional(), duty_code: zText(30) })).min(1, 'Add at least one service'),
+});
+/** Save a route with several services in one go. */
+export async function saveRoute(req, res) {
+  const b = validate(routeSchema, req.body);
+  const ids = await M.saveRoute(req.orgId, b);
+  res.status(201).json({ data: { ids }, message: `${ids.length} service(s) saved` });
 }

@@ -17,7 +17,7 @@ export default function Suppliers() {
   const set = (p) => setParams(Object.fromEntries(Object.entries({ ...f, page: 1, ...p }).filter(([, v]) => v)));
   useEffect(() => { setData(null); const t = setTimeout(() => api(`/suppliers${qs(f)}`).then(setData), 200); return () => clearTimeout(t); }, [params.toString()]); // eslint-disable-line react-hooks/exhaustive-deps
   const cur = me.org.base_currency;
-  const label = f.service ? `${SERVICES[f.service]?.label} Suppliers` : 'Suppliers';
+  const label = f.service === 'land_package' ? 'Land Package Vendors (DMC)' : f.service ? `${SERVICES[f.service]?.label} Suppliers` : 'Suppliers';
   return (
     <>
       <PageHeader title={label} subtitle="Vendors, DMCs, transporters, hotels groups and agents you book through"

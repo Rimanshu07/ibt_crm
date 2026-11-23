@@ -124,7 +124,7 @@ export function TxnTable({ rows, cur, onChange, showTrip }) {
             <td className="num" style={{ color: x.direction === 'in' ? 'var(--good)' : 'var(--bad)' }}>{x.direction === 'in' ? '+' : '−'}{money(x.amount, cur)}</td>
             <td>{x.verified_at ? <span className="badge good">✓ {x.verified_by_name}</span>
               : hasFeature('payment_verification') && can('payments.verify') ? <button className="btn small good" onClick={() => verify(x, cur)}>Verify</button> : <span className="badge warn">Not verified</span>}</td>
-            <td>{!x.verified_at && can('payments.log') && <button className="icon-btn" title="Delete" onClick={() => remove(x, cur)}>🗑</button>}</td>
+            <td>{!x.verified_at && can('payments.log') && <button className="btn remove xs" onClick={() => remove(x, cur)}>Remove</button>}</td>
           </tr>
         ))}</tbody>
       </table>

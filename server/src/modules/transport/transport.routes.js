@@ -8,6 +8,8 @@ router.use(...orgUser, requireFeature('transport'));
 const edit = requirePermission('masters.manage');
 router.get('/', ah(C.list));
 router.get('/locations', ah(C.locations));
+router.get('/route', ah(C.getRoute));
+router.post('/route', edit, ah(C.saveRoute));
 router.post('/', edit, ah(C.save));
 router.get('/:id', ah(C.get));
 router.put('/:id', edit, ah(C.save));

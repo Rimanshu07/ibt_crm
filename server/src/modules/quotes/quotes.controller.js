@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import { query, one, transaction } from '../../core/db.js';
 import { validate, notFound, badRequest, addDays, todayIso, r2, j, zText } from '../../core/http.js';
-import { normalizeFields, refIdSets } from '../../core/fields.js';
 import { notify } from '../../core/notify.js';
 import { SERVICES, firstStatus } from '../../../../shared/catalog.js';
 import { priceQuote, scheduleFromPref, defaultInstalments } from '../../../../shared/pricing.js';
 import { getTrip, logTrip } from '../trips/trips.model.js';
 import * as M from './quotes.model.js';
+import * as I from './quotes.items.js';
+import { firstDay } from '../../../../shared/quoteItems.js';
 
 const money = (n, cur) => `${cur} ${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
@@ -39,10 +40,10 @@ export async function price(req, res) {
 }
 
 export async function itineraryDraft(req, res) {
-  const b = validate(z.object({ nights: z.coerce.number().int().min(0).default(0), items: z.array(z.any()) }), req.body);
+  const b = validate(z.object({ nights: z.coerce.number().int().min(0).default(0), start_date: z.string().nullable().optional(), items: z.array(z.any()) }), req.body);
   const items = [];
-  for (const it of b.items) items.push({ ...it, title: it.title || await M.itemTitle(req.orgId, it.service, it.details || {}) });
-  res.json({ data: await M.draftItinerary(req.orgId, b.nights, items) });
+  for (const it of b.items) items.push({ ...it, details: it.details || {}, title: it.title || '' });
+  res.json({ data: await I.draftItinerary(req.orgId, b.nights, items, b.start_date || null) });
 }
 
 export async function defaults(req, res) {
@@ -53,14 +54,14 @@ export async function defaults(req, res) {
 const itemSchema = z.object({
   service: z.string(), details: z.record(z.string(), z.any()).default({}),
   cost: z.coerce.number().min(0, 'Price cannot be negative'),
-  buy_cost: z.union([z.coerce.number().min(0), z.null(), z.literal('')]).optional().transform((v) => (v === '' || v === undefined ? null : v)),
-  selling_override: z.union([z.coerce.number().min(0), z.null(), z.literal('')]).optional().transform((v) => (v === '' || v === undefined ? null : v)),
+  buy_cost: z.union([z.null(), z.literal(''), z.coerce.number().min(0)]).optional().transform((v) => (v === '' || v === undefined ? null : v)),
+  selling_override: z.union([z.null(), z.literal(''), z.coerce.number().min(0)]).optional().transform((v) => (v === '' || v === undefined ? null : v)),
 });
 
 const quoteSchema = z.object({
   quote_type: z.enum(['custom', 'vendor_package']).default('custom'),
   start_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal(''), z.null()]).optional().transform((v) => v || null),
-  nights: z.union([z.coerce.number().int().min(0).max(120), z.null(), z.literal('')]).optional().transform((v) => (v === '' || v === undefined ? null : v)),
+  nights: z.union([z.null(), z.literal(''), z.coerce.number().int().min(0).max(120)]).optional().transform((v) => (v === '' || v === undefined ? null : v)),
   adults: z.coerce.number().int().min(1),
   children_ages: z.array(z.coerce.number().int().min(0).max(17)).default([]),
   infants: z.coerce.number().int().min(0).default(0),
@@ -87,13 +88,11 @@ async function cleanItems(req, items, startDate) {
     const def = SERVICES[it.service];
     if (!def) { errors[`items.${i}`] = 'Unknown service'; continue; }
     if (def.feature && !req.features.includes(def.feature)) { errors[`items.${i}`] = `${def.label} is not enabled`; continue; }
-    if (def.dates === 'stay' && !startDate) { errors[`items.${i}`] = `${def.label} needs the trip start date`; continue; }
-    const sets = await refIdSets(req.orgId, def.quoteFields, [it.details]);
-    const { data, errors: fe } = normalizeFields(def.quoteFields, it.details, { refIds: sets });
-    for (const [k, m] of Object.entries(fe)) errors[`items.${i}.${k}`] = `${def.label}: ${def.quoteFields.find((f) => f.key === k)?.label} – ${m}`;
-    if (Object.keys(fe).length) continue;
-    out.push({ service: it.service, details: data, cost: it.cost, buy_cost: it.buy_cost, selling_override: it.selling_override,
-      title: (await M.itemTitle(req.orgId, it.service, data)).slice(0, 255), day_no: data.day ?? null });
+    const { details, errors: fe } = await I.cleanDetails(req, it.service, it.details || {}, startDate);
+    if (fe.length) { errors[`items.${i}`] = `${def.label}: ${fe.join('; ')}`; continue; }
+    const p = I.priceOf(it.service, details, it);
+    out.push({ service: it.service, details, ...p,
+      title: String(await I.itemTitle(req.orgId, it.service, details)).slice(0, 255), day_no: firstDay(it.service, details) ?? details.day ?? null });
   }
   if (Object.keys(errors).length) throw badRequest(Object.values(errors)[0], errors);
   return out;
@@ -172,20 +171,16 @@ export async function convert(req, res) {
       [q.id, q.total_selling, q.currency, q.start_date, q.nights, q.start_date ? addDays(q.start_date, q.nights || 0) : null, q.adults, req.user.id, req.user.id, t.id]
     );
     for (const it of q.items) {
-      const def = SERVICES[it.service];
-      const date = M.serviceDate(q.start_date, it.details, it.service);
-      const end = date && ['hotel', 'land_package'].includes(it.service) ? addDays(date, Number(it.details.nights) || 1) : date;
-      const people = Number(it.details.adults || 0) + Number(it.details.children || 0);
-      const copies = def?.perGuest ? Math.max(people, 1) : 1;
-      const buy = Number(it.buy_cost ?? it.cost);
-      for (let n = 0; n < copies; n += 1) {
+      for (const bk of await I.expandBookings(req.orgId, q.start_date, it)) {
         await c.execute(
           `INSERT INTO bookings (org_id, trip_id, quote_item_id, service, title, service_date, end_date, details, status, supplier_id, quoted_cost, updated_by)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [req.orgId, t.id, it.id, it.service, copies > 1 ? `${it.title} (${n + 1}/${copies})` : it.title, date, end,
-            JSON.stringify(def?.perGuest ? { ...it.details, adults: 1, children: 0 } : it.details), firstStatus(it.service),
-            it.details.supplier_id || null, r2(buy / copies), req.user.id]
+          [req.orgId, t.id, it.id, it.service, String(bk.title).slice(0, 255), bk.service_date || null, bk.end_date || null,
+            JSON.stringify(bk.details), firstStatus(it.service), bk.supplier_id || null, bk.quoted_cost, req.user.id]
         );
+      }
+      if (it.service === 'land_package' && it.details.attachment_id) {
+        await c.execute('UPDATE attachments SET quote_id = ? WHERE id = ? AND org_id = ?', [q.id, it.details.attachment_id, req.orgId]);
       }
     }
     for (const ins of b.instalments) {
@@ -197,4 +192,34 @@ export async function convert(req, res) {
     await notify(c, { orgId: req.orgId, userIds: team, type: 'trip.converted', title: `Trip ${t.trip_no} converted`, body: `${t.guest_name} · ${money(q.total_selling, q.currency)} · bookings are ready`, link: `/app/trips/${t.id}?tab=bookings` });
   });
   res.json({ message: 'Trip converted. Bookings and payment schedule are ready.' });
+}
+
+/** Edit a quote in place (same version). Not allowed once the trip was converted with it. */
+export async function update(req, res) {
+  const q = await one('SELECT id, trip_id, version FROM quotes WHERE id = ? AND org_id = ?', [Number(req.params.id), req.orgId]);
+  if (!q) throw notFound('Quote');
+  const t = await getTrip(req, q.trip_id);
+  if (t.converted_quote_id === q.id) throw badRequest('The trip was converted with this quote – duplicate it to make changes');
+  const b = validate(quoteSchema, req.body);
+  const items = await cleanItems(req, b.items, b.start_date);
+  const priced = priceQuote(items, b.pricing, b.adults + b.children_ages.length);
+  await transaction(async (c) => {
+    await c.execute(
+      `UPDATE quotes SET quote_type = ?, start_date = ?, nights = ?, adults = ?, children_ages = ?, infants = ?, currency = ?, pricing = ?,
+         total_cost = ?, total_buy = ?, total_markup = ?, total_tax = ?, total_selling = ?, itinerary = ?, remarks_internal = ?, remarks_customer = ?
+       WHERE id = ? AND org_id = ?`,
+      [b.quote_type, b.start_date, b.nights, b.adults, JSON.stringify(b.children_ages), b.infants, b.currency, JSON.stringify(b.pricing),
+        priced.total_cost, priced.total_buy, priced.total_markup, priced.total_tax, priced.total_selling,
+        b.itinerary ? JSON.stringify(b.itinerary) : null, b.remarks_internal, b.remarks_customer, q.id, req.orgId]
+    );
+    await c.execute('DELETE FROM quote_items WHERE quote_id = ?', [q.id]);
+    let k = 0;
+    for (const it of items) {
+      await c.execute('INSERT INTO quote_items (quote_id, org_id, service, title, details, day_no, cost, buy_cost, selling_override, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [q.id, req.orgId, it.service, it.title, JSON.stringify(it.details), it.day_no, it.cost, it.buy_cost, it.selling_override, k += 1]);
+    }
+    await c.execute('UPDATE trips SET package_amount = IF(converted_quote_id IS NULL AND latest_quote_id = ?, ?, package_amount) WHERE id = ?', [q.id, priced.total_selling, t.id]);
+    await logTrip(c, req, t.id, `edited quote v${q.version} – now ${money(priced.total_selling, b.currency)}`);
+  });
+  res.json({ data: { id: q.id }, message: `Quote v${q.version} updated` });
 }

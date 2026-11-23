@@ -16,6 +16,8 @@
 export const DEFAULT_OPTIONS = {
   salutations: ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Master', 'Miss'],
   meal_plans: ['EP', 'CP', 'MAP', 'AP'],
+  room_types: ['Standard', 'Deluxe', 'Super Deluxe', 'Premium', 'Executive', 'Suite', 'Family Room', 'Cottage', 'Villa'],
+  airports: [],
   stars: ['1', '2', '3', '4', '5', 'Budget', 'Boutique', 'Resort', 'Homestay', 'Villa'],
   cities: [
     'Delhi (DEL)', 'Mumbai (BOM)', 'Bengaluru (BLR)', 'Chennai (MAA)', 'Kolkata (CCU)', 'Hyderabad (HYD)', 'Ahmedabad (AMD)',
@@ -104,6 +106,7 @@ export const MASTER_TYPES = {
       { key: 'validity_days', label: 'Visa valid for (days)', type: 'number' },
       { key: 'processing_days', label: 'Processing time (days)', type: 'number' },
       { key: 'documents', label: 'Documents required', type: 'list', hint: 'Passport | Photo | Bank statement' },
+      { key: 'currency', label: 'Currency', type: 'select', list: 'currencies', default: 'INR' },
       { key: 'cost_adult', label: 'Cost per adult', type: 'number', required: true },
       { key: 'cost_child', label: 'Cost per child', type: 'number' },
       { key: 'selling_adult', label: 'Selling per adult', type: 'number' },
@@ -198,7 +201,7 @@ const pax = (key = 'adults', label = 'Adults', def = 1) => ({ key, label, type: 
 
 export const SERVICES = {
   hotel: {
-    label: 'Hotel', plural: 'Hotels', icon: '🏨', feature: 'hotel', perm: 'hotel.book', dates: 'stay', priceLookup: true,
+    label: 'Hotel', plural: 'Hotels', icon: '', feature: 'hotel', perm: 'hotel.book', dates: 'stay', priceLookup: true,
     quoteFields: [
       { key: 'day', label: 'Check-in night', type: 'number', required: true, default: 1, width: 1 },
       { key: 'nights', label: 'Nights', type: 'number', required: true, default: 1, width: 1 },
@@ -224,7 +227,7 @@ export const SERVICES = {
     ],
   },
   transport: {
-    label: 'Transport', plural: 'Transport', icon: '🚗', feature: 'transport', perm: 'transport.book', dates: 'stay', priceLookup: true,
+    label: 'Transport', plural: 'Transport', icon: '', feature: 'transport', perm: 'transport.book', dates: 'stay', priceLookup: true,
     quoteFields: [
       { key: 'day', label: 'Day', type: 'number', required: true, default: 1, width: 1 },
       { key: 'transport_service_id', label: 'Service (A → B)', type: 'ref', ref: 'transport_service', required: true, width: 3 },
@@ -246,7 +249,7 @@ export const SERVICES = {
     ],
   },
   activity: {
-    label: 'Activity', plural: 'Activities', icon: '🎟️', feature: 'activity', perm: 'activity.book', dates: 'stay', priceLookup: true,
+    label: 'Activity', plural: 'Activities', icon: '', feature: 'activity', perm: 'activity.book', dates: 'stay', priceLookup: true,
     quoteFields: [
       { key: 'day', label: 'Day', type: 'number', required: true, default: 1, width: 1 },
       { key: 'activity_service_id', label: 'Activity & ticket', type: 'ref', ref: 'activity_service', required: true, width: 3 },
@@ -260,7 +263,7 @@ export const SERVICES = {
     ],
   },
   land_package: {
-    label: 'Land Package', plural: 'Land Packages', icon: '🧳', feature: 'land_package', perm: 'land_package.book', dates: 'stay', priceLookup: true,
+    label: 'Land Package', plural: 'Land Packages', icon: '', feature: 'land_package', perm: 'land_package.book', dates: 'stay', priceLookup: true,
     quoteFields: [
       { key: 'day', label: 'Starts on day', type: 'number', required: true, default: 1, width: 1 },
       { key: 'land_package_id', label: 'Vendor package (optional)', type: 'ref', ref: 'land_package', width: 3 },
@@ -292,7 +295,7 @@ export const SERVICES = {
     ],
   },
   flight: {
-    label: 'Flight', plural: 'Flights', icon: '✈️', feature: 'flight', perm: 'flight.book', dates: 'date', priceLookup: false,
+    label: 'Flight', plural: 'Flights', icon: '', feature: 'flight', perm: 'flight.book', dates: 'date', priceLookup: false,
     quoteFields: [
       { key: 'day', label: 'Day', type: 'number', required: true, default: 1, width: 1 },
       { key: 'trip_way', label: 'Trip', type: 'select', list: 'trip_ways', default: 'One way', width: 1 },
@@ -320,7 +323,7 @@ export const SERVICES = {
     ],
   },
   train: {
-    label: 'Train', plural: 'Trains', icon: '🚆', feature: 'train', perm: 'train.book', dates: 'date', priceLookup: true,
+    label: 'Train', plural: 'Trains', icon: '', feature: 'train', perm: 'train.book', dates: 'date', priceLookup: true,
     quoteFields: [
       { key: 'day', label: 'Day', type: 'number', required: true, default: 1, width: 1 },
       { key: 'train_id', label: 'Train', type: 'ref', ref: 'train', required: true, width: 3 },
@@ -341,7 +344,7 @@ export const SERVICES = {
     ],
   },
   visa: {
-    label: 'Visa', plural: 'Visa', icon: '🛂', feature: 'visa', perm: 'visa.book', dates: 'none', priceLookup: true, perGuest: true,
+    label: 'Visa', plural: 'Visa', icon: '', feature: 'visa', perm: 'visa.book', dates: 'none', priceLookup: true, perGuest: true,
     quoteFields: [
       { key: 'visa_service_id', label: 'Visa', type: 'ref', ref: 'visa_service', required: true, width: 3 },
       pax('adults', 'Adult applicants', 1), pax('children', 'Child applicants', 0),
@@ -363,7 +366,7 @@ export const SERVICES = {
     ],
   },
   passport: {
-    label: 'Passport', plural: 'Passport', icon: '📘', feature: 'passport', perm: 'passport.book', dates: 'none', priceLookup: true, perGuest: true,
+    label: 'Passport', plural: 'Passport', icon: '', feature: 'passport', perm: 'passport.book', dates: 'none', priceLookup: true, perGuest: true,
     quoteFields: [
       { key: 'passport_service_id', label: 'Service', type: 'ref', ref: 'passport_service', required: true, width: 3 },
       pax('adults', 'Applicants', 1),
@@ -383,7 +386,7 @@ export const SERVICES = {
     ],
   },
   insurance: {
-    label: 'Travel Insurance', plural: 'Insurance', icon: '🛡️', feature: 'insurance', perm: 'insurance.book', dates: 'date', priceLookup: true,
+    label: 'Travel Insurance', plural: 'Insurance', icon: '', feature: 'insurance', perm: 'insurance.book', dates: 'date', priceLookup: true,
     quoteFields: [
       { key: 'insurance_plan_id', label: 'Plan', type: 'ref', ref: 'insurance_plan', required: true, width: 3 },
       pax('adults', 'Travellers', 1),
@@ -401,7 +404,7 @@ export const SERVICES = {
     ],
   },
   other: {
-    label: 'Other Service', plural: 'Other Services', icon: '➕', feature: null, perm: 'transport.book', dates: 'none', priceLookup: false,
+    label: 'Other Service', plural: 'Other Services', icon: '', feature: null, perm: 'transport.book', dates: 'none', priceLookup: false,
     quoteFields: [
       { key: 'day', label: 'Day', type: 'number', default: 1, width: 1 },
       { key: 'description', label: 'Description', type: 'text', required: true, hint: 'e.g. Guide, special dinner', width: 3 },
@@ -420,7 +423,7 @@ export const SERVICE_ORDER = ['hotel', 'transport', 'activity', 'land_package', 
 
 /** What a customer can ask for on the enquiry form. "package" = hotel + transport + activity. */
 export const ENQUIRY_SERVICES = [
-  { key: 'package', label: 'Holiday package', icon: '🌴', includes: ['hotel', 'transport', 'activity'], dates: 'stay' },
+  { key: 'package', label: 'Holiday package', icon: '', includes: ['hotel', 'transport', 'activity'], dates: 'stay' },
   ...['hotel', 'transport', 'activity', 'land_package', 'flight', 'train', 'visa', 'passport', 'insurance']
     .map((k) => ({ key: k, label: SERVICES[k].label, icon: SERVICES[k].icon, feature: SERVICES[k].feature, includes: [k], dates: SERVICES[k].dates })),
 ];

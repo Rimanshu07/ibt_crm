@@ -14,7 +14,7 @@ export async function get(req, res) {
   res.json({ data: { ...h, ...(await M.activity(req.orgId, h.id)) } });
 }
 
-const room = z.object({ name: z.string().trim().min(1).max(150), aweb: z.coerce.number().int().min(0).default(1), cweb: z.coerce.number().int().min(0).default(1), cnb: z.coerce.number().int().min(0).default(1), rooms: z.union([z.coerce.number().int().min(0), z.null()]).optional() });
+const room = z.object({ name: z.string().trim().min(1).max(150), eb: z.coerce.number().int().min(0).max(4).default(1), aweb: z.coerce.number().int().min(0).default(1), cweb: z.coerce.number().int().min(0).default(1), cnb: z.coerce.number().int().min(0).default(1), rooms: z.union([z.null(), z.coerce.number().int().min(0)]).optional() });
 const contact = z.object({ name: zText(120), designation: zText(80), phone: zText(40), email: zText(150) });
 const schema = z.object({
   name: z.string().trim().min(2, 'Hotel name is required').max(200),

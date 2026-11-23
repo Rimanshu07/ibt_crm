@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api, getToken, setToken } from './api.js';
+import { api, getToken, setToken, setOrgTimezone } from './api.js';
 
 const AuthContext = createContext(null);
 
@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
     if (!getToken()) { setMe(null); setLoading(false); return null; }
     try {
       const { data } = await api('/auth/me');
+      setOrgTimezone(data.org?.timezone);
       setMe(data);
       return data;
     } catch {

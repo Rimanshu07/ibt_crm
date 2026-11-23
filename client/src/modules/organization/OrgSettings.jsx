@@ -5,76 +5,39 @@ import { PLACEHOLDERS } from '@shared/templates.js';
 import { describePref } from '@shared/pricing.js';
 import { api, readDataUrl, fmtDateTime } from '../../core/api.js';
 import { useAuth } from '../../core/auth.jsx';
-import { Check, Empty, Field, FormError, Input, Loading, Modal, PageHeader, Select, useConfirm, useForm, useToast } from '../../core/ui.jsx';
-import './organization.css';
+import OptionListDialog from '../services/OptionListDialog.jsx';
+import { useOptions } from '../../core/forms.jsx';
+import { Check, Empty, Field, FormError, Input, Loading, Modal, PageHeader, Select, Tabs, useConfirm, useForm, useToast } from '../../core/ui.jsx';
 
 const TABS = [
-  { key: 'profile', label: 'Company', group: 'Business', description: 'Identity, contact details, location and regional defaults.' },
-  { key: 'offices', label: 'Offices', group: 'Business', description: 'Manage the addresses used across your organization.' },
-  { key: 'bank-accounts', label: 'Bank accounts', group: 'Business', description: 'Manage payment accounts and document visibility.' },
-  { key: 'branding', label: 'Header & footer', group: 'Documents', description: 'Brand your quotes, vouchers and invoices.' },
-  { key: 'templates', label: 'Templates', group: 'Documents', description: 'Customize customer emails and travel documents.' },
-  { key: 'content', label: 'Inclusions & exclusions', group: 'Documents', description: 'Set the inclusions and exclusions shown in quotes.' },
-  { key: 'tnc', label: 'Terms & conditions', group: 'Documents', description: 'Manage the terms added to customer quotes.' },
-  { key: 'supplier-prefs', label: 'Supplier payments', group: 'Payments & tax', description: 'Set default payment schedules for suppliers.' },
-  { key: 'customer-prefs', label: 'Customer payments', group: 'Payments & tax', description: 'Set the default schedule for customer instalments.' },
-  { key: 'taxes', label: 'Taxes', group: 'Payments & tax', description: 'Configure the tax rates available in quotes.' },
+  { key: 'profile', label: 'Company' }, { key: 'offices', label: 'Offices' }, { key: 'bank-accounts', label: 'Bank Accounts' },
+  { key: 'branding', label: 'Header & Footer' }, { key: 'templates', label: 'Templates' },
+  { key: 'supplier-prefs', label: 'Supplier Payment Prefs' }, { key: 'customer-prefs', label: 'Customer Payment Prefs' },
+  { key: 'lists', label: 'Dropdown Lists' }, { key: 'content', label: 'Inc/Exclusions' }, { key: 'tnc', label: 'T&C' }, { key: 'taxes', label: 'Taxes' },
 ];
 
 export default function OrgSettings() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'profile';
-  const activeTab = TABS.find((item) => item.key === tab) || TABS[0];
-  const tabContent = {
-    profile: <Profile />,
-    offices: <Offices />,
-    'bank-accounts': <Banks />,
-    branding: <Branding />,
-    templates: <Templates />,
-    'supplier-prefs': <Prefs kind="supplier" />,
-    'customer-prefs': <Prefs kind="customer" />,
-    content: <Content kind="inc_exc" />,
-    tnc: <Content kind="tnc" />,
-    taxes: <Taxes />,
-  };
-
   return (
     <>
-      <PageHeader title="Organization" subtitle="Manage your company profile, documents and payment defaults"
-        actions={<div className="org-quick-links">
-          <Link className="org-quick-link" to="/app/users">Users <span aria-hidden="true">↗</span></Link>
-          <Link className="org-quick-link" to="/app/roles">Roles <span aria-hidden="true">↗</span></Link>
-          <Link className="org-quick-link" to="/app/plan">Plan & features <span aria-hidden="true">↗</span></Link>
-        </div>} />
-      <div className="org-settings-layout">
-        <nav className="org-settings-nav" aria-label="Organization settings">
-          <div className="org-settings-nav-title">Workspace settings</div>
-          {['Business', 'Documents', 'Payments & tax'].map((group) => (
-            <div className="org-settings-nav-group" key={group}>
-              <div className="org-settings-nav-label">{group}</div>
-              {TABS.filter((item) => item.group === group).map((item) => (
-                <button key={item.key} type="button" className={`org-settings-nav-item ${activeTab.key === item.key ? 'active' : ''}`}
-                  aria-current={activeTab.key === item.key ? 'page' : undefined}
-                  onClick={() => setParams({ tab: item.key })}>
-                  <span>{item.label}</span>
-                  {activeTab.key === item.key && <span className="org-settings-nav-indicator" aria-hidden="true">›</span>}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <section className="org-settings-panel">
-          <header className="org-settings-panel-head">
-            <div>
-              <span className="org-settings-eyebrow">{activeTab.group}</span>
-              <h2>{activeTab.label}</h2>
-              <p>{activeTab.description}</p>
-            </div>
-          </header>
-          <div className="org-settings-panel-body">
-            {tabContent[activeTab.key]}
-          </div>
-      </section>
+      <PageHeader title="Organization" subtitle="Company details, offices, bank accounts, documents and defaults"
+        actions={<><Link className="btn secondary" to="/app/users">Users</Link><Link className="btn secondary" to="/app/roles">Roles</Link><Link className="btn secondary" to="/app/plan">Plan & Features</Link></>} />
+      <div className="card flush">
+        <div style={{ padding: '0 12px' }}><Tabs value={tab} onChange={(k) => setParams({ tab: k })} tabs={TABS} /></div>
+        <div style={{ padding: '4px 16px 16px' }}>
+          {tab === 'profile' && <Profile />}
+          {tab === 'offices' && <Offices />}
+          {tab === 'bank-accounts' && <Banks />}
+          {tab === 'branding' && <Branding />}
+          {tab === 'templates' && <Templates />}
+          {tab === 'supplier-prefs' && <Prefs kind="supplier" />}
+          {tab === 'customer-prefs' && <Prefs kind="customer" />}
+          {tab === 'lists' && <Lists />}
+          {tab === 'content' && <Content kind="inc_exc" />}
+          {tab === 'tnc' && <Content kind="tnc" />}
+          {tab === 'taxes' && <Taxes />}
+        </div>
       </div>
     </>
   );
@@ -151,10 +114,10 @@ function Offices() {
     <>
       <div className="row-between mb"><p className="muted">Branches and offices. The head office appears on documents.</p><button className="btn" onClick={() => setEditing({})}>+ Add office</button></div>
       {rows.length === 0 ? <Empty>No offices yet.</Empty> : (
-        <div className="org-office-grid">{rows.map((o) => (
+        <div className="grid grid-3">{rows.map((o) => (
           <div key={o.id} className="card">
             <div className="row-between"><h3>{o.name} {o.is_head ? <span className="badge info">Head office</span> : null}</h3>
-              <span><button className="icon-btn" onClick={() => setEditing(o)}>✎</button><button className="icon-btn" onClick={() => remove(o, o.name)}>🗑</button></span></div>
+              <span><button className="btn secondary xs" onClick={() => setEditing(o)}>Edit</button> <button className="btn remove xs" onClick={() => remove(o, o.name)}>Delete</button></span></div>
             <p className="small">{[o.address, o.city, o.state, o.pincode, o.country].filter(Boolean).join(', ')}</p>
             <p className="muted small">{o.phone} {o.email}{o.tax_id && <><br />GSTIN {o.tax_id}</>}</p>
           </div>
@@ -178,15 +141,15 @@ function Banks() {
       <div className="row-between mb"><p className="muted">Accounts you receive and pay money through. Ticked accounts are printed on quotes and invoices. Balances are under <Link to="/app/accounting/accounts">Accounting → Accounts</Link>.</p>
         <button className="btn" onClick={() => setEditing({ kind: 'bank', currency: 'INR', show_on_docs: true, is_active: true })}>+ Add account</button></div>
       {rows.length === 0 ? <Empty>No accounts yet.</Empty> : (
-        <div className="org-data-table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Bank details</th><th>Currency</th><th>On documents</th><th /></tr></thead>
+        <table><thead><tr><th>Name</th><th>Type</th><th>Bank details</th><th>Currency</th><th>On documents</th><th /></tr></thead>
           <tbody>{rows.map((a) => (
             <tr key={a.id} className={a.is_active ? '' : 'muted-row'}>
               <td><strong>{a.name}</strong>{a.is_default ? <span className="badge info" style={{ marginLeft: 6 }}>Default</span> : null}</td><td>{KINDS.find((k) => k.value === a.kind)?.label}</td>
               <td className="small">{a.bank_name} {a.account_name && `· ${a.account_name}`} {a.account_no && `· ${a.account_no}`} {a.ifsc && `· ${a.ifsc}`} {a.upi_id && `· ${a.upi_id}`}</td>
               <td>{a.currency}</td><td>{a.show_on_docs ? '✓' : '—'}</td>
-              <td className="right"><button className="icon-btn" onClick={() => setEditing({ ...a, show_on_docs: Boolean(a.show_on_docs), is_default: Boolean(a.is_default), is_active: Boolean(a.is_active) })}>✎</button><button className="icon-btn" onClick={() => remove(a, a.name)}>🗑</button></td>
+              <td className="right"><button className="btn secondary xs" onClick={() => setEditing({ ...a, show_on_docs: Boolean(a.show_on_docs), is_default: Boolean(a.is_default), is_active: Boolean(a.is_active) })}>Edit</button> <button className="btn remove xs" onClick={() => remove(a, a.name)}>Delete</button></td>
             </tr>
-          ))}</tbody></table></div>
+          ))}</tbody></table>
       )}
       {editing && <RowDialog table="bank-accounts" row={editing} title="Account" onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }}
         fields={[['kind', 'Type', 'select', KINDS], ['name', 'Display name *'], ['currency', 'Currency'], ['bank_name', 'Bank name'], ['account_name', 'Account holder name'], ['account_no', 'Account number'],
@@ -226,7 +189,7 @@ function ImagePick({ label, value, onChange, hint }) {
   };
   return (
     <Field label={label} hint={hint}>
-      <div className="row wrap">{value && <img src={value} alt="" style={{ maxHeight: 48, maxWidth: 200, border: '1px solid var(--line)', borderRadius: 4 }} />}
+      <div className="row">{value && <img src={value} alt="" style={{ maxHeight: 48, maxWidth: 200, border: '1px solid var(--line)', borderRadius: 4 }} />}
         <input type="file" accept="image/*" onChange={pick} style={{ maxWidth: 230 }} />{value && <button className="btn ghost small" onClick={() => onChange('')}>Remove</button>}</div>
     </Field>
   );
@@ -246,12 +209,12 @@ function Branding() {
   };
   const contact = [v.address, v.city, v.phone, v.email].filter(Boolean).join(' · ');
   return (
-    <div className="org-branding-layout">
+    <div className="layout-side" style={{ gridTemplateColumns: '1fr 1fr' }}>
       <div className="stack">
         <ImagePick label="Logo" value={v.logo_url} onChange={(x) => setV({ ...v, logo_url: x })} hint="PNG/JPG, under 2 MB" />
         <Field label="Accent colour"><input type="color" value={b.primary_color} onChange={(e) => setB({ primary_color: e.target.value })} style={{ width: 80, height: 34 }} /></Field>
         <h3>Header</h3>
-        <div className="row wrap"><label className="checkbox"><input type="radio" checked={b.header.mode === 'text'} onChange={() => setH({ mode: 'text' })} /> Logo & text</label><label className="checkbox"><input type="radio" checked={b.header.mode === 'image'} onChange={() => setH({ mode: 'image' })} /> Letter-head image</label></div>
+        <div className="row"><label className="checkbox"><input type="radio" checked={b.header.mode === 'text'} onChange={() => setH({ mode: 'text' })} /> Logo & text</label><label className="checkbox"><input type="radio" checked={b.header.mode === 'image'} onChange={() => setH({ mode: 'image' })} /> Letter-head image</label></div>
         {b.header.mode === 'image' ? <ImagePick label="Header image" value={v.header_image} onChange={(x) => setV({ ...v, header_image: x })} hint="Full-width banner, about 1600 × 250 px" /> : <>
           <Input label="Title (defaults to company name)" value={b.header.title} onChange={(e) => setH({ title: e.target.value })} />
           <Input label="Tagline" value={b.header.subtitle} onChange={(e) => setH({ subtitle: e.target.value })} placeholder="e.g. Your trusted travel partner since 2005" />
@@ -259,14 +222,14 @@ function Branding() {
             <Check checked={b.header.show_logo} onChange={(x) => setH({ show_logo: x })}>Show logo</Check><Check checked={b.header.show_contact} onChange={(x) => setH({ show_contact: x })}>Show address & contact</Check></div>
         </>}
         <h3>Footer</h3>
-        <div className="row wrap"><label className="checkbox"><input type="radio" checked={b.footer.mode === 'text'} onChange={() => setF({ mode: 'text' })} /> Text</label><label className="checkbox"><input type="radio" checked={b.footer.mode === 'image'} onChange={() => setF({ mode: 'image' })} /> Image</label></div>
+        <div className="row"><label className="checkbox"><input type="radio" checked={b.footer.mode === 'text'} onChange={() => setF({ mode: 'text' })} /> Text</label><label className="checkbox"><input type="radio" checked={b.footer.mode === 'image'} onChange={() => setF({ mode: 'image' })} /> Image</label></div>
         {b.footer.mode === 'image' ? <ImagePick label="Footer image" value={v.footer_image} onChange={(x) => setV({ ...v, footer_image: x })} />
           : <Field label="Footer text"><textarea rows={3} value={b.footer.text} onChange={(e) => setF({ text: e.target.value })} placeholder="Registered office, licence numbers, social links…" /></Field>}
         <button className="btn" style={{ width: 'fit-content' }} onClick={save}>Save header & footer</button>
       </div>
       <div>
         <h3>Preview (quotes, vouchers, invoices)</h3>
-        <div className="org-branding-preview" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 20, background: '#fff', minHeight: 360, display: 'flex', flexDirection: 'column' }}>
           {b.header.mode === 'image' && v.header_image ? <img src={v.header_image} alt="" style={{ width: '100%' }} /> : (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: b.header.align === 'center' ? 'center' : 'flex-start', flexDirection: b.header.align === 'right' ? 'row-reverse' : 'row', borderBottom: `3px solid ${b.primary_color}`, paddingBottom: 10, textAlign: b.header.align }}>
               {b.header.show_logo && v.logo_url && <img src={v.logo_url} alt="" style={{ maxHeight: 50 }} />}
@@ -299,7 +262,7 @@ function Templates() {
   return (
     <>
       <p className="muted mb">Text and options used when you share quotes, send booking emails and print documents. Use placeholders like <code>{'{{guest_name}}'}</code>.</p>
-      <div className="org-template-grid">{rows.map((t) => (
+      <div className="grid grid-3">{rows.map((t) => (
         <div key={t.key} className="card">
           <div className="row-between"><h3>{t.kind === 'email' ? '✉' : '📄'} {t.label}</h3>{t.customised ? <span className="badge info">Customised</span> : <span className="badge">Default</span>}</div>
           <p className="muted small" style={{ minHeight: 36 }}>{t.subject}</p>
@@ -349,11 +312,11 @@ function Prefs({ kind }) {
           : 'How customers pay you. The default fills the instalments when you convert a trip.'}</p>
         <button className="btn" onClick={() => setEditing({ kind, service: 'all', parts: [{ event: 'booking_date', offset_days: 0, pct: 100 }], is_default: false })}>+ Add New</button>
       </div>
-      <div className="org-data-table-wrap"><table><thead><tr><th>Description</th><th>Applies to</th><th /></tr></thead>
+      <table><thead><tr><th>Description</th><th>Applies to</th><th /></tr></thead>
         <tbody>{rows.map((p) => (
           <tr key={p.id}><td>{p.name} {p.is_default ? <span className="badge info">Default</span> : null}</td><td>{p.service === 'all' ? 'All services' : SERVICES[p.service]?.label}</td>
-            <td className="right"><button className="icon-btn" onClick={() => setEditing({ ...p, is_default: Boolean(p.is_default) })}>✎</button><button className="icon-btn" onClick={() => remove(p, 'this preference')}>🗑</button></td></tr>
-        ))}</tbody></table></div>
+            <td className="right"><button className="btn secondary xs" onClick={() => setEditing({ ...p, is_default: Boolean(p.is_default) })}>Edit</button> <button className="btn remove xs" onClick={() => remove(p, 'this preference')}>Delete</button></td></tr>
+        ))}</tbody></table>
       {editing && <PrefDialog pref={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </>
   );
@@ -373,7 +336,7 @@ function PrefDialog({ pref, onClose, onSaved }) {
     <Modal wide title={`${p.kind === 'supplier' ? 'Supplier' : 'Customer'} payment preference`} onClose={onClose}
       footer={<><button className="btn secondary" onClick={onClose}>Cancel</button><button className="btn" disabled={Math.abs(total - 100) > 0.01} onClick={save}>Save Preference</button></>}>
       <p className="muted">Example: <b>100% 2 days before Checkin</b> – Checkin is the reference, 2 days is the offset and 100% is the amount share.</p>
-      <div className="org-data-table-wrap"><table><thead><tr><th>Reference event</th><th>Days</th><th>Before / after</th><th>Amount share %</th><th /></tr></thead>
+      <table><thead><tr><th>Reference event</th><th>Days</th><th>Before / after</th><th>Amount share %</th><th /></tr></thead>
         <tbody>{p.parts.map((x, i) => (
           <tr key={i}>
             <td><select value={x.event} onChange={(e) => setPart(i, { event: e.target.value })}>{events.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}</select></td>
@@ -382,7 +345,7 @@ function PrefDialog({ pref, onClose, onSaved }) {
             <td><input type="number" min={1} max={100} value={x.pct} onChange={(e) => setPart(i, { pct: e.target.value })} style={{ width: 90 }} /></td>
             <td><button className="icon-btn" onClick={() => setP({ ...p, parts: p.parts.filter((_, k) => k !== i) })}>✕</button></td>
           </tr>
-        ))}</tbody></table></div>
+        ))}</tbody></table>
       <button className="btn secondary small" onClick={() => setP({ ...p, parts: [...p.parts, { event: p.kind === 'customer' ? 'trip_start' : 'checkin_date', dir: 'before', days: 7, pct: Math.max(100 - total, 0) }] })}>+ Add More</button>
       <div className={`alert mt ${Math.abs(total - 100) > 0.01 ? 'bad' : 'good'}`}><b>{describePref(parts) || '—'}</b> · total {total}%{Math.abs(total - 100) > 0.01 && ' (must be 100%)'}</div>
       <div className="grid grid-2 mt">
@@ -409,9 +372,9 @@ function Content({ kind }) {
       {services.filter((s) => rows.some((r) => r.service === s)).map((s) => (
         <div key={s} className="mb">
           <div className="section-title">{s === 'general' ? 'General' : `${SERVICES[s].icon} ${SERVICES[s].label}`}</div>
-          <div className="org-office-grid">{rows.filter((r) => r.service === s).map((r) => (
+          <div className="grid grid-2">{rows.filter((r) => r.service === s).map((r) => (
             <div key={r.id} className="card">
-              <div className="row-between"><h3>{r.title} {!r.is_default && <span className="badge">Not auto-added</span>}</h3><span><button className="icon-btn" onClick={() => setEditing({ ...r, is_default: Boolean(r.is_default) })}>✎</button><button className="icon-btn" onClick={() => remove(r, r.title)}>🗑</button></span></div>
+              <div className="row-between"><h3>{r.title} {!r.is_default && <span className="badge">Not auto-added</span>}</h3><span><button className="btn secondary xs" onClick={() => setEditing({ ...r, is_default: Boolean(r.is_default) })}>Edit</button> <button className="btn remove xs" onClick={() => remove(r, r.title)}>Delete</button></span></div>
               {kind === 'inc_exc' ? <div className="grid grid-2 small">
                 <ul style={{ margin: 0, paddingLeft: 16 }}>{r.inclusions.map((x) => <li key={x}>✔ {x}</li>)}</ul>
                 <ul style={{ margin: 0, paddingLeft: 16 }}>{r.exclusions.map((x) => <li key={x}>✘ {x}</li>)}</ul></div> : <p className="small pre">{r.body}</p>}
@@ -463,14 +426,39 @@ function Taxes() {
   return (
     <>
       <p className="muted mb">Taxes offered in the quote builder. For India use GST (e.g. 5% on package, or 18% on margin only).</p>
-      <div className="org-data-table-wrap"><table><thead><tr><th>Name</th><th>Rate %</th><th>Default</th><th /></tr></thead>
+      <table><thead><tr><th>Name</th><th>Rate %</th><th>Default</th><th /></tr></thead>
         <tbody>{rows.map((t) => (
           <tr key={t.id}><td>{t.name}</td><td>{t.rate}</td><td>{t.is_default ? '✓' : <button className="btn link small" onClick={() => save(t, { name: t.name, rate: t.rate, is_default: true })}>Make default</button>}</td>
-            <td className="right"><button className="icon-btn" onClick={() => del(t)}>🗑</button></td></tr>
+            <td className="right"><button className="btn remove xs" onClick={() => del(t)}>Remove</button></td></tr>
         ))}
           <tr><td><input placeholder="e.g. GST" value={nw.name} onChange={(e) => setNw({ ...nw, name: e.target.value })} /></td><td><input type="number" value={nw.rate} onChange={(e) => setNw({ ...nw, rate: e.target.value })} /></td>
             <td><Check checked={nw.is_default} onChange={(x) => setNw({ ...nw, is_default: x })}>Default</Check></td><td><button className="btn small" disabled={!nw.name} onClick={() => save(null, nw)}>Add</button></td></tr>
-        </tbody></table></div>
+        </tbody></table>
     </>
+  );
+}
+
+/* ------------------------------ dropdown lists ------------------------------ */
+const LISTS = [
+  ['meal_plans', 'Meal plans', 'Hotels & quotes'], ['room_types', 'Room types', 'Hotels & quotes'], ['stars', 'Hotel categories', 'Hotels'], ['hotel_groups', 'Hotel groups', 'Hotels'], ['hotel_tags', 'Hotel booking tags', 'Bookings'],
+  ['cab_types', 'Cab types', 'Transport'], ['transport_services', 'Transport service types', 'Transport'], ['cities', 'Cities / locations', 'All services'],
+  ['airlines', 'Airlines', 'Flights'], ['airports', 'Airports', 'Flights'], ['flight_classes', 'Travel classes', 'Flights'],
+  ['visa_countries', 'Visa countries', 'Visa'], ['visa_types', 'Visa types', 'Visa'], ['visa_purposes', 'Visa purposes', 'Visa'],
+  ['stations', 'Railway stations', 'Train'], ['train_classes', 'Train classes', 'Train'], ['insurers', 'Insurance companies', 'Insurance'],
+  ['currencies', 'Currencies', 'Pricing'], ['payment_modes', 'Payment modes', 'Accounting'], ['supplier_kinds', 'Supplier kinds', 'Suppliers'], ['source_kinds', 'Query source kinds', 'Trips'], ['salutations', 'Salutations', 'Guests'],
+];
+function Lists() {
+  const [open, setOpen] = useState(null);
+  const opts = useOptions(LISTS.map((l) => l[0]));
+  return (
+    <div className="stack mt">
+      <p className="muted small">Values offered in dropdowns across the app. Add your own (e.g. a new meal plan "MAPAI" or room type) – they appear in hotel forms, price sheets and the quote form.</p>
+      <table><thead><tr><th>List</th><th>Used in</th><th>Values</th><th /></tr></thead>
+        <tbody>{LISTS.map(([k, label, where]) => (
+          <tr key={k}><td><b>{label}</b></td><td className="muted small">{where}</td><td className="small">{(opts[k] || []).slice(0, 8).join(', ')}{(opts[k] || []).length > 8 ? ` +${opts[k].length - 8}` : ''}</td>
+            <td className="right"><button className="btn secondary small" onClick={() => setOpen([k, label])}>Manage</button></td></tr>
+        ))}</tbody></table>
+      {open && <OptionListDialog list={open[0]} title={open[1]} onClose={() => setOpen(null)} />}
+    </div>
   );
 }

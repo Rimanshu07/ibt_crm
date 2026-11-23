@@ -16,4 +16,5 @@ router.get('/defaults', build, ah(C.defaults));
 router.get('/:id', requirePermission('trips.view'), ah(C.get));
 router.get('/:id/schedule', requirePermission('trips.convert'), ah(C.schedule));
 router.put('/:id/itinerary', build, ah(C.updateItinerary));
+router.put('/:id', build, ah(C.update));
 export default router;

@@ -36,7 +36,7 @@ export default function Roles() {
             <td>{r.user_count}</td>
             <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
               <button className="btn link small" onClick={() => setEditing(r)}>Edit</button>
-              {r.name !== 'Admin' && <button className="btn link small" onClick={() => remove(r)}>Delete</button>}
+              {r.name !== 'Admin' && <button className="btn remove xs" onClick={() => remove(r)}>Delete</button>}
             </td>
           </tr>
         ))}</tbody>

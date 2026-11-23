@@ -4,6 +4,7 @@ import { SERVICES } from '@shared/catalog.js';
 import { api, money, fmtDate } from '../../core/api.js';
 import { useAuth } from '../../core/auth.jsx';
 import { Empty, Kpi, Loading, PageHeader, Tabs, useConfirm, useToast } from '../../core/ui.jsx';
+import Attachments from '../documents/Attachments.jsx';
 import { BookingStatus } from '../trips/common.jsx';
 import { dueState } from '../accounting/shared.jsx';
 
@@ -35,7 +36,7 @@ export default function SupplierDetail() {
         <Kpi label="Bookings" value={s.bookings.length} /><Kpi label="Paid so far" value={money(s.payments.reduce((x, p) => x + Number(p.amount), 0), cur)} />
       </div>
       <div className="card flush">
-        <div style={{ padding: '0 12px' }}><Tabs value={tab} onChange={(k) => setParams({ tab: k })} tabs={[{ key: 'details', label: 'Details' }, { key: 'bookings', label: 'Bookings', count: s.bookings.length }, { key: 'dues', label: 'Due Payments', count: s.dues.filter((i) => Number(i.paid_amount) < Number(i.amount)).length }, { key: 'payments', label: 'Accounting', count: s.payments.length }]} /></div>
+        <div style={{ padding: '0 12px' }}><Tabs value={tab} onChange={(k) => setParams({ tab: k })} tabs={[{ key: 'details', label: 'Details' }, { key: 'bookings', label: 'Bookings', count: s.bookings.length }, { key: 'dues', label: 'Due Payments', count: s.dues.filter((i) => Number(i.paid_amount) < Number(i.amount)).length }, { key: 'payments', label: 'Accounting', count: s.payments.length }, { key: 'files', label: s.services?.includes('land_package') ? 'Packages received' : 'Files' }]} /></div>
         <div style={{ padding: '0 16px 16px' }}>
           {tab === 'details' && (
             <div className="grid grid-2">
@@ -61,6 +62,7 @@ export default function SupplierDetail() {
             <table><thead><tr><th>Due</th><th>Trip</th><th>For</th><th className="num">Amount</th><th className="num">Paid</th><th>Status</th></tr></thead>
               <tbody>{s.dues.map((i) => <tr key={i.id}><td>{fmtDate(i.due_date)}</td><td><Link to={`/app/trips/${i.trip_id}?tab=accounting`}>#{i.trip_no}</Link></td><td className="small">{i.booking_title}</td><td className="num">{money(i.amount, cur)}</td><td className="num">{money(i.paid_amount, cur)}</td><td>{dueState(i)}</td></tr>)}</tbody></table>
           ))}
+          {tab === 'files' && <div style={{ padding: 12 }}><Attachments supplierId={s.id} title={s.services?.includes('land_package') ? 'Packages received from this vendor' : 'Files kept for records'} /></div>}
           {tab === 'payments' && (s.payments.length === 0 ? <Empty>No payments yet.</Empty> : (
             <table><thead><tr><th>Date</th><th>Trip</th><th>Mode</th><th>Reference</th><th className="num">Amount</th><th>Verified</th></tr></thead>
               <tbody>{s.payments.map((x) => <tr key={x.id}><td>{fmtDate(x.paid_at)}</td><td>{x.trip_no ? `#${x.trip_no}` : '—'}</td><td>{x.mode}</td><td>{x.reference}</td><td className="num">{money(x.amount, cur)}</td><td>{x.verified_at ? '✓' : '—'}</td></tr>)}</tbody></table>

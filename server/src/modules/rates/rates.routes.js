@@ -11,5 +11,8 @@ router.get('/:service/template', ah(C.template));
 router.get('/:service/uploads', ah(C.uploads));
 router.post('/:service/upload', requirePermission('masters.import', 'masters.manage'), ah(C.doUpload));
 router.post('/:service/calculate', ah(C.calculate));
+router.post('/:service/breakdown', ah(C.breakdown));
+router.post('/:service/manual', requirePermission('masters.manage'), ah(C.manual));
+router.put('/:service/:id', requirePermission('masters.manage'), ah(C.updateRate));
 router.delete('/:service', requirePermission('masters.manage'), ah(C.remove));
 export default router;

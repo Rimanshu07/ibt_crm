@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useAuth } from '../../core/auth.jsx';
 import { api } from '../../core/api.js';
 import { Field, FormError, Input, PageHeader, useForm, useToast } from '../../core/ui.jsx';
+import { getThemePref, setThemePref } from '../../core/theme.js';
 import { CreatableSelect } from '../../core/forms.jsx';
 
 export default function MyProfile() {
@@ -41,6 +43,32 @@ export default function MyProfile() {
           <div className="form-actions"><button className="btn" disabled={pw.busy} onClick={savePw}>Change password</button></div>
         </div>
       </div>
+      <Appearance />
     </>
+  );
+}
+
+/** Light / dark theme for this browser. */
+function Appearance() {
+  const [pref, setPref] = useState(getThemePref());
+  const choose = (k) => { setThemePref(k); setPref(k); };
+  const opts = [
+    { key: 'light', label: 'Light', hint: 'White pages, dark top bar' },
+    { key: 'dark', label: 'Dark', hint: 'Easier on the eyes at night' },
+    { key: 'system', label: 'Same as my computer', hint: 'Follows your device setting' },
+  ];
+  return (
+    <div className="card mt">
+      <h2>Appearance</h2>
+      <p className="muted small">Choose how IBT Travels CRM looks on this device. Quotes and vouchers you send always print in light colours.</p>
+      <div className="theme-options mt">
+        {opts.map((o) => (
+          <button key={o.key} type="button" className={`theme-option ${pref === o.key ? 'on' : ''}`} onClick={() => choose(o.key)}>
+            <span className={`theme-swatch ${o.key}`}><i /><i /><i /></span>
+            <b>{o.label}</b><span className="muted small">{o.hint}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

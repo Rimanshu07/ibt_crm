@@ -1,3 +1,4 @@
+import { requestContext } from './core/context.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -8,6 +9,7 @@ export function createApp() {
   const app = express();
   app.use(helmet());
   app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+  app.use((req, res, next) => requestContext.run({ tz: null }, next)); // org timezone is filled in after login
   app.use(express.json({ limit: '25mb' })); // price sheets, logos and imports
 
   app.get('/api/v1/health', (_req, res) => res.json({ ok: true, name: 'IBT Travels CRM API' }));

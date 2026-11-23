@@ -17,7 +17,9 @@ export default function TripDetail() {
   const [t, setT] = useState(null);
   const [editing, setEditing] = useState(false);
   const [stageDlg, setStageDlg] = useState(null);
-  const tab = params.get('tab') || 'overview';
+  const hasQuotes = hasFeature('quotes');
+  const defaultTab = hasQuotes ? 'quotes' : 'overview';
+  const tab = params.get('tab') || defaultTab;
   const load = useCallback(() => api(`/trips/${id}`).then((r) => setT(r.data)), [id]);
   useEffect(() => { load(); }, [load]);
   if (!t) return <Loading />;
@@ -31,6 +33,12 @@ export default function TripDetail() {
         title={<span className="row">Trip #{t.trip_no} · {t.guest_salutation} {t.guest_name} <StageBadge stage={t.stage} /></span>}
         subtitle={<span className="row wrap">{t.destinations.map((d) => d.name).join(', ') || 'No destination'} · {tripDates(t)} · {tripPax(t)} <ServiceChips services={t.services} /></span>}
         actions={<>
+          {can('trips.edit') && t.stage === 'cancelled' && (
+            <button className="btn secondary" onClick={() => setStageDlg('in_progress')}>Reopen Query</button>
+          )}
+          {can('trips.edit') && t.stage !== 'cancelled' && t.stage !== 'past' && (
+            <button className="btn danger outline" onClick={() => setStageDlg('cancelled')}>✕ Cancel {converted ? 'Trip' : 'Query'}</button>
+          )}
           {can('trips.edit') && moves.length > 0 && (
             <select value="" onChange={(e) => e.target.value && setStageDlg(e.target.value)} style={{ width: 170 }}>
               <option value="">Change stage…</option>{moves.map((s) => <option key={s} value={s}>{s === 'dropped' ? 'Drop enquiry' : s === 'cancelled' ? 'Cancel trip' : stageLabel(s)}</option>)}
@@ -42,8 +50,8 @@ export default function TripDetail() {
       <div className="card flush">
         <div style={{ padding: '0 12px' }}>
           <Tabs value={tab} onChange={(k) => setParams({ tab: k })} tabs={[
+            hasQuotes && { key: 'quotes', label: 'Quotes', count: t.quotes?.length ?? 0 },
             { key: 'overview', label: 'Overview' },
-            hasFeature('quotes') && { key: 'quotes', label: 'Quotes', count: t.quotes.length },
             converted && { key: 'bookings', label: 'Bookings' },
             converted && hasFeature('accounting') && { key: 'accounting', label: 'Accounting' },
             hasFeature('vouchers') && { key: 'docs', label: 'Docs & Vouchers' },
@@ -51,8 +59,8 @@ export default function TripDetail() {
           ]} />
         </div>
         <div style={{ padding: '0 16px 16px' }}>
-          {tab === 'overview' && <Overview t={t} cur={cur} reload={load} />}
           {tab === 'quotes' && <QuotesTab trip={t} reload={load} />}
+          {tab === 'overview' && <Overview t={t} cur={cur} reload={load} />}
           {tab === 'bookings' && <BookingsTab trip={t} />}
           {tab === 'accounting' && <AccountingTab trip={t} reload={load} />}
           {tab === 'docs' && <DocsTab trip={t} />}
@@ -67,38 +75,122 @@ export default function TripDetail() {
 
 function StageDialog({ stage, trip, onClose, onDone }) {
   const [reason, setReason] = useState('');
+  const [comments, setComments] = useState('');
+  const [remindAt, setRemindAt] = useState('');
   const [err, setErr] = useState('');
+  const isCancelled = stage === 'cancelled';
   const needReason = ['dropped', 'cancelled'].includes(stage);
+
+  const CANCELLATION_REASONS = [
+    'Price too high',
+    'Booked elsewhere',
+    'Plan postponed',
+    'Plan cancelled',
+    'Not reachable',
+    'Duplicate enquiry',
+    'Visa rejected',
+    'Customer not interested',
+    'Dates / destination not feasible',
+    'Other',
+  ];
+
   const go = async () => {
-    try { const r = await api(`/trips/${trip.id}/stage`, { method: 'POST', body: { stage, reason } }); onDone(r.message); } catch (e) { setErr(e.message); }
+    try {
+      const r = await api(`/trips/${trip.id}/stage`, {
+        method: 'POST',
+        body: {
+          stage,
+          reason,
+          comments: comments.trim() || undefined,
+          remind_at: remindAt || undefined,
+        },
+      });
+      onDone(r.message);
+    } catch (e) {
+      setErr(e.message);
+    }
   };
+
   return (
-    <Modal title={`Move to ${stageLabel(stage)}`} onClose={onClose} footer={<><button className="btn secondary" onClick={onClose}>Cancel</button><button className={`btn ${needReason ? 'danger' : ''}`} onClick={go}>Confirm</button></>}>
+    <Modal
+      title={isCancelled ? `Cancel ${['converted', 'on_trip'].includes(trip.stage) ? 'Trip' : 'Query'}` : `Move to ${stageLabel(stage)}`}
+      onClose={onClose}
+      footer={<>
+        <button className="btn secondary" onClick={onClose}>{isCancelled ? 'Keep Query' : 'Cancel'}</button>
+        <button className={`btn ${needReason ? 'danger' : ''}`} disabled={needReason && !reason} onClick={go}>
+          {isCancelled ? 'Mark as Canceled' : 'Confirm'}
+        </button>
+      </>}>
       {err && <div className="alert bad mb">{err}</div>}
-      <Field label={needReason ? 'Reason *' : 'Note (optional)'}>
-        {needReason ? <select value={reason} onChange={(e) => setReason(e.target.value)}><option value="">Choose…</option>
-          {['Price too high', 'Booked elsewhere', 'Plan postponed', 'Plan cancelled', 'Not reachable', 'Duplicate enquiry', 'Visa rejected', 'Other'].map((x) => <option key={x}>{x}</option>)}</select>
-          : <input value={reason} onChange={(e) => setReason(e.target.value)} />}
-      </Field>
+      {isCancelled ? (
+        <div className="stack">
+          <Field label="Cancellation reason *">
+            <select value={reason} onChange={(e) => setReason(e.target.value)} autoFocus>
+              <option value="">Select cancellation reason…</option>
+              {CANCELLATION_REASONS.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </Field>
+          <Field label="Reminder date (optional for postponed queries / follow-up)">
+            <Input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} />
+          </Field>
+          <Field label="Comments / Notes (optional)">
+            <textarea rows={3} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="Provide any additional details or context…" />
+          </Field>
+        </div>
+      ) : (
+        <Field label={needReason ? 'Reason *' : 'Note (optional)'}>
+          {needReason ? (
+            <select value={reason} onChange={(e) => setReason(e.target.value)}>
+              <option value="">Choose…</option>
+              {['Price too high', 'Booked elsewhere', 'Plan postponed', 'Plan cancelled', 'Not reachable', 'Duplicate enquiry', 'Visa rejected', 'Other'].map((x) => <option key={x}>{x}</option>)}
+            </select>
+          ) : (
+            <input value={reason} onChange={(e) => setReason(e.target.value)} />
+          )}
+        </Field>
+      )}
     </Modal>
   );
 }
 
 function Overview({ t, cur, reload }) {
-  const { can } = useAuth();
+  const { me, can } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
   const staff = useStaff();
+  const defaultAssignee = t.sales_user_id || me?.user?.id || '';
   const [team, setTeam] = useState({ sales_user_id: t.sales_user_id, resv_user_id: t.resv_user_id, ops_user_id: t.ops_user_id });
   const [travel, setTravel] = useState({ arrival_details: t.arrival_details || '', departure_details: t.departure_details || '' });
-  const [task, setTask] = useState({ body: '', due_at: '', assignee_id: '', is_actionable: true });
+  const [task, setTask] = useState({ body: '', due_at: '', assignee_id: defaultAssignee, is_actionable: true });
   const staffOpts = staff.map((s) => ({ value: s.id, label: s.name }));
+
+  useEffect(() => {
+    setTeam({ sales_user_id: t.sales_user_id, resv_user_id: t.resv_user_id, ops_user_id: t.ops_user_id });
+  }, [t.sales_user_id, t.resv_user_id, t.ops_user_id]);
+
+  useEffect(() => {
+    setTask((prev) => ({
+      ...prev,
+      assignee_id: prev.assignee_id || t.sales_user_id || me?.user?.id || '',
+    }));
+  }, [t.sales_user_id, me?.user?.id]);
+
   const saveTeam = async () => { const r = await api(`/trips/${t.id}/team`, { method: 'PUT', body: team }); toast(r.message); reload(); };
   const saveTravel = async () => { const r = await api(`/trips/${t.id}/travel-details`, { method: 'PUT', body: travel }); toast(r.message); };
   const addTask = async () => {
     try {
-      const r = await api('/tasks', { method: 'POST', body: { ...task, trip_id: t.id, assignee_id: task.assignee_id || null, due_at: task.is_actionable ? task.due_at || null : null } });
-      toast(r.message); setTask({ body: '', due_at: '', assignee_id: '', is_actionable: true }); reload();
+      const r = await api('/tasks', {
+        method: 'POST',
+        body: {
+          ...task,
+          trip_id: t.id,
+          assignee_id: task.assignee_id || t.sales_user_id || me?.user?.id || null,
+          due_at: task.is_actionable ? task.due_at || null : null,
+        },
+      });
+      toast(r.message);
+      setTask({ body: '', due_at: '', assignee_id: t.sales_user_id || me?.user?.id || '', is_actionable: true });
+      reload();
     } catch (e) { toast(e.message, 'bad'); }
   };
   const toggleTask = async (k) => { await api(`/tasks/${k.id}/done`, { method: 'POST' }); reload(); };
@@ -123,7 +215,7 @@ function Overview({ t, cur, reload }) {
                   <label className="checkbox" style={{ textDecoration: k.done_at ? 'line-through' : 'none' }}>
                     {k.is_actionable ? <input type="checkbox" checked={Boolean(k.done_at)} onChange={() => toggleTask(k)} /> : '💬'} {k.body}
                   </label>
-                  <button className="icon-btn" onClick={() => delTask(k)} title="Delete">🗑</button>
+                  <button className="btn remove xs" onClick={() => delTask(k)}>Remove</button>
                 </div>
                 <div className="muted small">{k.created_by_name} · {ago(k.created_at)}{k.due_at && ` · due ${fmtDateTime(k.due_at)}`}{k.assignee_name && ` · for ${k.assignee_name}`}</div>
               </div>
@@ -151,6 +243,7 @@ function Overview({ t, cur, reload }) {
             <dt>Trip type</dt><dd>{t.trip_type === 'package' ? 'Holiday package' : 'Individual services'}</dd>
             <dt>Travel</dt><dd>{tripDates(t)}{t.end_date && <div className="muted small">till {fmtDate(t.end_date)}</div>}</dd>
             <dt>Travellers</dt><dd>{tripPax(t)}</dd>
+            <dt>Assigned to</dt><dd>{t.sales_name || '—'}</dd>
             <dt>Source</dt><dd>{t.source_name || 'Direct'}{t.ref_id && ` · Ref ${t.ref_id}`}</dd>
             <dt>Tags</dt><dd>{t.tags.join(', ') || '—'}</dd>
             <dt>Created</dt><dd>{fmtDateTime(t.created_at)} by {t.created_by_name}</dd>
