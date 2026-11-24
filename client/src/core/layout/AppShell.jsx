@@ -18,32 +18,91 @@ function groupsOf(items = []) {
   return out.filter((g) => g.items.length);
 }
 
-function NavMenu({ label, items, right, cols, active, badge, render }) {
+function NavMenu({ label, items, right, cols, active, badge, render, onOpen }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const closeTimer = useRef(null);
   const loc = useLocation();
+
   useEffect(() => setOpen(false), [loc.pathname, loc.search]);
+
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      clearTimeout(closeTimer.current);
+    };
   }, []);
+
+  const handleMouseEnter = () => {
+    clearTimeout(closeTimer.current);
+    setOpen(true);
+    onOpen?.();
+  };
+
+  const handleMouseLeave = () => {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => {
+      setOpen(false);
+    }, 150);
+  };
+
+  const closeMenu = () => {
+    clearTimeout(closeTimer.current);
+    setOpen(false);
+  };
+
   return (
-    <div className="nav-item" ref={ref}>
-      <button className={`nav-btn ${active ? 'active' : ''}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+    <div
+      className="nav-item"
+      ref={ref}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <button
+        type="button"
+        className={`nav-btn ${active ? 'active' : ''}`}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
         {label}{badge}{!render && <span className="small">▾</span>}
       </button>
       {open && (
-        <div className={`menu ${right ? 'right' : ''} ${groupsOf(items).length > 1 ? 'mega' : ''} ${cols && groupsOf(items).length > 3 ? 'two-col' : ''}`}>
-          {render ? render(() => setOpen(false)) : groupsOf(items).length > 1
+        <div
+          className={`menu ${right ? 'right' : ''} ${groupsOf(items).length > 1 ? 'mega' : ''} ${cols && groupsOf(items).length > 3 ? 'two-col' : ''}`}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {render ? render(closeMenu) : groupsOf(items).length > 1
             ? groupsOf(items).map((g, k) => (
               <div key={k} className="menu-group">
                 {g.title && <div className="menu-group-title"><i />{g.title}</div>}
-                {g.items.map((i) => <Link key={`${i.to}${i.label}`} to={i.to}><span>{i.label}</span>{i.count ? <span className="count">{i.count}</span> : null}</Link>)}
+                {g.items.map((i) => (
+                  <Link
+                    key={`${i.to}${i.label}`}
+                    to={i.to}
+                    onClick={closeMenu}
+                  >
+                    <span>{i.label}</span>
+                    {i.count ? <span className="count">{i.count}</span> : null}
+                  </Link>
+                ))}
               </div>
             ))
-            : items.map((i, k) => (i.divider ? <hr key={k} /> : i.title ? <div key={k} className="menu-title">{i.title}</div>
-              : <Link key={`${i.to}${i.label}`} to={i.to}><span>{i.label}</span>{i.count ? <span className="count">{i.count}</span> : null}</Link>))}
+            : items.map((i, k) => (
+              i.divider ? <hr key={k} /> : i.title ? <div key={k} className="menu-title">{i.title}</div>
+                : (
+                  <Link
+                    key={`${i.to}${i.label}`}
+                    to={i.to}
+                    onClick={closeMenu}
+                  >
+                    <span>{i.label}</span>
+                    {i.count ? <span className="count">{i.count}</span> : null}
+                  </Link>
+                )
+            ))}
         </div>
       )}
     </div>
@@ -86,7 +145,10 @@ function Bell() {
   useEffect(() => { const t = setInterval(() => api('/notifications/count').then((r) => setUnread(r.data.unread)).catch(() => {}), 60000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const readAll = async () => { await api('/notifications/read-all', { method: 'POST' }); setItems([]); setUnread(0); };
   return (
-    <NavMenu right label={<span className="bell" onClick={load}>🔔{me.unread > 0 && <span className="dot">{me.unread > 99 ? '99+' : me.unread}</span>}</span>}
+    <NavMenu
+      right
+      onOpen={load}
+      label={<span className="bell" onClick={load}>🔔{me.unread > 0 && <span className="dot">{me.unread > 99 ? '99+' : me.unread}</span>}</span>}
       render={(close) => (
         <div style={{ width: 340 }}>
           <div className="row-between" style={{ padding: '6px 10px' }}><strong>Notifications</strong>{items.length > 0 && <button className="btn link small" onClick={readAll}>Mark all read</button>}</div>

@@ -164,3 +164,11 @@ booking split and itinerary draft were tested with a stubbed database. **It has 
 so expect a round of small fixes on first run.
 
 Next: automated tests and hardening, email sending (SMTP) for quotes and booking enquiries, WhatsApp / email marketing, AI features.
+
+
+npm --prefix ibt-travels-crm/server run migrate-db 
+(Migration Script Command)
+
+
+npm --prefix ibt-travels-crm/server run setup-db
+(Fresh Setup Script)
