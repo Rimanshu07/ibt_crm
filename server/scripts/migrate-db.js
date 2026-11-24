@@ -32,6 +32,19 @@ try {
 
   console.log(`Creating missing tables in ${dbName}...`);
   await conn.query(migration);
+
+  // Apply column upgrades for existing tables
+  try {
+    await conn.query(`
+      ALTER TABLE organizations
+        MODIFY COLUMN logo_url MEDIUMTEXT,
+        MODIFY COLUMN header_image MEDIUMTEXT,
+        MODIFY COLUMN footer_image MEDIUMTEXT
+    `);
+  } catch (err) {
+    console.warn('Note on column alter:', err.message);
+  }
+
   console.log('Database migration complete. Existing tables and data were left unchanged.');
 } finally {
   await conn.end();
